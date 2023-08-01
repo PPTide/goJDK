@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/PPTide/goJDK/parse"
 	"github.com/k0kubun/pp"
-	"goJDK/parse"
 )
 
 func main() {
