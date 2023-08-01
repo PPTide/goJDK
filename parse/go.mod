@@ -1,3 +1,3 @@
-module github.com/PPTide/goJDK/parse
+module github.com/PPTide/gojdk/parse
 
 go 1.20
