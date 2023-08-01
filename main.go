@@ -8,12 +8,12 @@ import (
 
 func main() {
 	res, err := parse.Parse("Square.class")
-	pp.Print(res)
+	pp.Println(res)
 	if err != nil {
 		panic(err)
 	}
 	res2, err := validate.Validate(res)
-	pp.Print(res2)
+	pp.Println(res2)
 	if err != nil {
 		panic(err)
 	}
