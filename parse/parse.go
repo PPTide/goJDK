@@ -61,22 +61,22 @@ func decodeBigEndian(b []byte) (o int) {
 }
 
 type ClassFile struct {
-	magic             int
-	minorVersion      int
-	majorVersion      int
-	constantPoolCount int
-	constantPool      []cpInfo
-	accessFlags       int
-	thisClass         int
-	superClass        int
-	interfacesCount   int
-	interfaces        []byte
-	fieldsCount       int
-	fields            interface{}
-	methodsCount      int
-	methods           []methodInfo
-	attributesCount   int
-	attributes        []attributeInfo
+	Magic             int
+	MinorVersion      int
+	MajorVersion      int
+	ConstantPoolCount int
+	ConstantPool      []cpInfo
+	AccessFlags       int
+	ThisClass         int
+	SuperClass        int
+	InterfacesCount   int
+	Interfaces        []byte
+	FieldsCount       int
+	Fields            interface{}
+	MethodsCount      int
+	Methods           []methodInfo
+	AttributesCount   int
+	Attributes        []attributeInfo
 }
 
 func Parse(filename string) (cF ClassFile, err error) {
@@ -95,69 +95,69 @@ func Parse(filename string) (cF ClassFile, err error) {
 	}
 	reader := (*classFileReader)(bytes.NewReader(content))
 
-	cF.magic, err = reader.ReadU4()
+	cF.Magic, err = reader.ReadU4()
 	if err != nil {
 		return
 	}
-	if cF.magic != 0xCAFEBABE {
+	if cF.Magic != 0xCAFEBABE {
 		err = errors.New("incorrect magic")
 		return
 	}
 
-	cF.minorVersion, err = reader.ReadU2()
+	cF.MinorVersion, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	cF.majorVersion, err = reader.ReadU2()
+	cF.MajorVersion, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	cF.constantPoolCount, cF.constantPool, err = reader.ReadConstantPool()
+	cF.ConstantPoolCount, cF.ConstantPool, err = reader.ReadConstantPool()
 	if err != nil {
 		return
 	}
 
-	cF.accessFlags, err = reader.ReadU2()
+	cF.AccessFlags, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	cF.thisClass, err = reader.ReadU2()
+	cF.ThisClass, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	cF.superClass, err = reader.ReadU2()
+	cF.SuperClass, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	cF.interfacesCount, err = reader.ReadU2()
+	cF.InterfacesCount, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	if cF.interfacesCount > 0 {
+	if cF.InterfacesCount > 0 {
 		return cF, errors.New("interfaces not implemented")
 	}
 
-	cF.fieldsCount, err = reader.ReadU2()
+	cF.FieldsCount, err = reader.ReadU2()
 	if err != nil {
 		return
 	}
 
-	if cF.fieldsCount > 0 {
+	if cF.FieldsCount > 0 {
 		return cF, errors.New("fields not implemented")
 	}
 
-	cF.methodsCount, cF.methods, err = reader.ReadMethods()
+	cF.MethodsCount, cF.Methods, err = reader.ReadMethods()
 	if err != nil {
 		return
 	}
 
-	cF.attributesCount, cF.attributes, err = reader.ReadAttributes()
+	cF.AttributesCount, cF.Attributes, err = reader.ReadAttributes()
 	if err != nil {
 		return
 	}
