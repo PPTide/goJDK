@@ -8,7 +8,6 @@ require (
 )
 
 require (
-	github.com/PPTide/goJDK/validate v0.0.0-20230801163507-925ca2bb025b // indirect
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect

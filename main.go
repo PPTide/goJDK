@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/PPTide/goJDK/validate"
 	"github.com/PPTide/gojdk/parse"
 	"github.com/k0kubun/pp"
 )
@@ -12,7 +11,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	res2, err := validate.Validate(res)
+	res2, err := parse.Validate(res)
 	pp.Println(res2)
 	if err != nil {
 		panic(err)
