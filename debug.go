@@ -75,8 +75,7 @@ func niceShow(file parse.ClassFile) {
 }
 
 func showAttribute(info parse.AttributeInfo, file parse.ClassFile, pad int) (out string) {
-	attributeName := string(file.ConstantPool[info.AttributeNameIndex].(parse.ConstantUtf8Info).Content)
-	//attributeName := getAsUtf8String(info.AttributeNameIndex, file)
+	attributeName := getAsUtf8String(info.AttributeNameIndex, file)
 	out += fmt.Sprintf("%sName: %s\n", strings.Repeat(" ", pad), attributeName)
 
 	reader := (*parse.ClassFileReader)(bytes.NewReader(info.Info))
@@ -92,6 +91,28 @@ func showAttribute(info parse.AttributeInfo, file parse.ClassFile, pad int) (out
 		}
 		if reader.Len() != 0 {
 			//panic("couldn't read attributes LineNumberTable")
+		}
+	case "Code":
+		maxStack, _ := reader.ReadU2()
+		maxLocals, _ := reader.ReadU2()
+
+		codeLength, _ := reader.ReadU4()
+		code := make([]byte, codeLength)
+		reader.Read(code)
+
+		exceptionTableLength, _ := reader.ReadU2()
+		exceptionTable := make([]byte, exceptionTableLength)
+		reader.Read(exceptionTable) //TODO: Parse the exception table
+
+		_, attributes, _ := reader.ReadAttributes()
+
+		out += fmt.Sprintf("%sMax Stack: %d\n", strings.Repeat(" ", pad), maxStack)
+		out += fmt.Sprintf("%sMax Locals: %d\n", strings.Repeat(" ", pad), maxLocals)
+		out += fmt.Sprintf("%sExeption Table Len: %d\n", strings.Repeat(" ", pad), exceptionTableLength)
+		out += fmt.Sprintf("%sCode: %v\n", strings.Repeat(" ", pad), code)
+		out += fmt.Sprintf("%sAttributes: \n", strings.Repeat(" ", pad))
+		for _, attribute := range attributes {
+			out += showAttribute(attribute, file, pad+2)
 		}
 	default:
 		out += strings.Repeat(" ", pad) + "Unknown Attribute\n"
