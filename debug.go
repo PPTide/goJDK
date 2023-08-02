@@ -114,6 +114,9 @@ func showAttribute(info parse.AttributeInfo, file parse.ClassFile, pad int) (out
 		for _, attribute := range attributes {
 			out += showAttribute(attribute, file, pad+2)
 		}
+	case "SourceFile":
+		sourcefileIndex, _ := reader.ReadU2()
+		out += fmt.Sprintf("%sSource File: %s\n", strings.Repeat(" ", pad), getAsUtf8String(sourcefileIndex, file))
 	default:
 		out += strings.Repeat(" ", pad) + "Unknown Attribute\n"
 	}
