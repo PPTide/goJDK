@@ -8,21 +8,21 @@ import (
 	"os"
 )
 
-type classFileReader bytes.Reader
+type ClassFileReader bytes.Reader
 
-func (r *classFileReader) Len() int {
+func (r *ClassFileReader) Len() int {
 	return ((*bytes.Reader)(r)).Len()
 }
 
-func (r *classFileReader) Read(p []byte) (n int, err error) {
+func (r *ClassFileReader) Read(p []byte) (n int, err error) {
 	return ((*bytes.Reader)(r)).Read(p)
 }
 
-func (r *classFileReader) ReadByte() (byte, error) {
+func (r *ClassFileReader) ReadByte() (byte, error) {
 	return ((*bytes.Reader)(r)).ReadByte()
 }
 
-func (r *classFileReader) ReadU4() (res int, err error) {
+func (r *ClassFileReader) ReadU4() (res int, err error) {
 	x := make([]byte, 4)
 
 	n, err := r.Read(x)
@@ -36,7 +36,7 @@ func (r *classFileReader) ReadU4() (res int, err error) {
 	return
 }
 
-func (r *classFileReader) ReadU2() (res int, err error) {
+func (r *ClassFileReader) ReadU2() (res int, err error) {
 	x := make([]byte, 2)
 
 	n, err := r.Read(x)
@@ -76,7 +76,7 @@ type ClassFile struct {
 	MethodsCount      int
 	Methods           []methodInfo
 	AttributesCount   int
-	Attributes        []attributeInfo
+	Attributes        []AttributeInfo
 }
 
 func Parse(filename string) (cF ClassFile, err error) {
@@ -93,7 +93,7 @@ func Parse(filename string) (cF ClassFile, err error) {
 	if err != nil {
 		return
 	}
-	reader := (*classFileReader)(bytes.NewReader(content))
+	reader := (*ClassFileReader)(bytes.NewReader(content))
 
 	cF.Magic, err = reader.ReadU4()
 	if err != nil {

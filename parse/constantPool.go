@@ -13,8 +13,8 @@ type cpInfo interface {
 
 type ConstantMethodrefInfo struct {
 	tag              byte // u1 tag; (always 10)
-	classIndex       int  // u2 class_index;
-	nameAndTypeIndex int  // u2 name_and_type_index;
+	ClassIndex       int  // u2 class_index;
+	NameAndTypeIndex int  // u2 name_and_type_index;
 }
 
 func (c ConstantMethodrefInfo) toCPInfoRaw() cpInfoRaw {
@@ -22,9 +22,20 @@ func (c ConstantMethodrefInfo) toCPInfoRaw() cpInfoRaw {
 	panic("implement me")
 }
 
+type ConstantFieldrefInfo struct {
+	tag              byte // u1 tag; (always 9)
+	ClassIndex       int  // u2 class_index;
+	NameAndTypeIndex int  // u2 name_and_type_index;
+}
+
+func (c ConstantFieldrefInfo) toCPInfoRaw() cpInfoRaw {
+	//TODO implement me
+	panic("implement me")
+}
+
 type ConstantClassInfo struct {
 	tag       byte // u1 tag;
-	nameIndex int  // u2 name_index;
+	NameIndex int  // u2 name_index;
 }
 
 func (c ConstantClassInfo) toCPInfoRaw() cpInfoRaw {
@@ -34,8 +45,8 @@ func (c ConstantClassInfo) toCPInfoRaw() cpInfoRaw {
 
 type ConstantNameAndTypeInfo struct {
 	tag             byte // u1 tag;
-	nameIndex       int  // u2 name_index;
-	descriptorIndex int  // u2 descriptor_index;
+	NameIndex       int  // u2 name_index;
+	DescriptorIndex int  // u2 descriptor_index;
 }
 
 func (c ConstantNameAndTypeInfo) toCPInfoRaw() cpInfoRaw {
@@ -46,7 +57,7 @@ func (c ConstantNameAndTypeInfo) toCPInfoRaw() cpInfoRaw {
 type ConstantUtf8Info struct {
 	tag     byte   // 1 tag;
 	length  int    // u2 length;
-	content []byte // u1 bytes[length];
+	Content []byte // u1 bytes[length];
 }
 
 func (c ConstantUtf8Info) toCPInfoRaw() cpInfoRaw {
@@ -54,7 +65,7 @@ func (c ConstantUtf8Info) toCPInfoRaw() cpInfoRaw {
 	panic("implement me")
 }
 
-func (r *classFileReader) ReadCPInfo() (info cpInfo, err error) {
+func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
 	tag, err := r.ReadByte()
 	if err != nil {
 		return
@@ -64,19 +75,31 @@ func (r *classFileReader) ReadCPInfo() (info cpInfo, err error) {
 	switch tag {
 	case 7: // CONSTANT_Class
 		CInfo := ConstantClassInfo{tag: 7}
-		CInfo.nameIndex, err = r.ReadU2()
+		CInfo.NameIndex, err = r.ReadU2()
 		if err != nil {
 			return
 		}
 
 		info = CInfo
-	case 10: // CONSTANT_Methodref
-		MRInfo := ConstantMethodrefInfo{tag: 10}
-		MRInfo.classIndex, err = r.ReadU2()
+	case 9: // CONSTANT_Fieldref
+		FieldredInfo := ConstantFieldrefInfo{tag: 9}
+		FieldredInfo.ClassIndex, err = r.ReadU2()
 		if err != nil {
 			return
 		}
-		MRInfo.nameAndTypeIndex, err = r.ReadU2()
+		FieldredInfo.NameAndTypeIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+
+		info = FieldredInfo
+	case 10: // CONSTANT_Methodref
+		MRInfo := ConstantMethodrefInfo{tag: 10}
+		MRInfo.ClassIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+		MRInfo.NameAndTypeIndex, err = r.ReadU2()
 		if err != nil {
 			return
 		}
@@ -84,11 +107,11 @@ func (r *classFileReader) ReadCPInfo() (info cpInfo, err error) {
 		info = MRInfo
 	case 12: // CONSTANT_NameAndType
 		NaTInfo := ConstantNameAndTypeInfo{tag: 12}
-		NaTInfo.nameIndex, err = r.ReadU2()
+		NaTInfo.NameIndex, err = r.ReadU2()
 		if err != nil {
 			return
 		}
-		NaTInfo.descriptorIndex, err = r.ReadU2()
+		NaTInfo.DescriptorIndex, err = r.ReadU2()
 		if err != nil {
 			return
 		}
@@ -106,7 +129,7 @@ func (r *classFileReader) ReadCPInfo() (info cpInfo, err error) {
 			if err != nil {
 				return
 			}
-			Utf8Info.content = append(Utf8Info.content, b)
+			Utf8Info.Content = append(Utf8Info.Content, b)
 		}
 		info = Utf8Info
 	default:
@@ -117,7 +140,7 @@ func (r *classFileReader) ReadCPInfo() (info cpInfo, err error) {
 	return
 }
 
-func (r *classFileReader) ReadConstantPool() (size int, entries []cpInfo, err error) {
+func (r *ClassFileReader) ReadConstantPool() (size int, entries []cpInfo, err error) {
 	size, err = r.ReadU2()
 	if err != nil {
 		return
