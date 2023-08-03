@@ -2,13 +2,8 @@ package parse
 
 import "fmt"
 
-type cpInfoRaw struct {
-	tag  byte   // u1 tag;
-	info []byte // u1 info[];
-}
-
 type cpInfo interface {
-	toCPInfoRaw() cpInfoRaw
+	implementCPInfo()
 }
 
 type ConstantMethodrefInfo struct {
@@ -17,9 +12,8 @@ type ConstantMethodrefInfo struct {
 	NameAndTypeIndex int  // u2 name_and_type_index;
 }
 
-func (c ConstantMethodrefInfo) toCPInfoRaw() cpInfoRaw {
-	//TODO implement me
-	panic("implement me")
+func (c ConstantMethodrefInfo) implementCPInfo() {
+	return
 }
 
 type ConstantFieldrefInfo struct {
@@ -28,9 +22,8 @@ type ConstantFieldrefInfo struct {
 	NameAndTypeIndex int  // u2 name_and_type_index;
 }
 
-func (c ConstantFieldrefInfo) toCPInfoRaw() cpInfoRaw {
-	//TODO implement me
-	panic("implement me")
+func (c ConstantFieldrefInfo) implementCPInfo() {
+	return
 }
 
 type ConstantClassInfo struct {
@@ -38,9 +31,8 @@ type ConstantClassInfo struct {
 	NameIndex int  // u2 name_index;
 }
 
-func (c ConstantClassInfo) toCPInfoRaw() cpInfoRaw {
-	//TODO implement me
-	panic("implement me")
+func (c ConstantClassInfo) implementCPInfo() {
+	return
 }
 
 type ConstantNameAndTypeInfo struct {
@@ -49,9 +41,8 @@ type ConstantNameAndTypeInfo struct {
 	DescriptorIndex int  // u2 descriptor_index;
 }
 
-func (c ConstantNameAndTypeInfo) toCPInfoRaw() cpInfoRaw {
-	//TODO implement me
-	panic("implement me")
+func (c ConstantNameAndTypeInfo) implementCPInfo() {
+	return
 }
 
 type ConstantUtf8Info struct {
@@ -60,11 +51,11 @@ type ConstantUtf8Info struct {
 	Content []byte // u1 bytes[length];
 }
 
-func (c ConstantUtf8Info) toCPInfoRaw() cpInfoRaw {
-	//TODO implement me
-	panic("implement me")
+func (c ConstantUtf8Info) implementCPInfo() {
+	return
 }
 
+// ReadCPInfo reads one constant pool entry.
 func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
 	tag, err := r.ReadByte()
 	if err != nil {
@@ -123,13 +114,10 @@ func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
 		if err != nil {
 			return
 		}
-		for i := 0; i < Utf8Info.length; i++ {
-			var b byte
-			b, err = r.ReadByte()
-			if err != nil {
-				return
-			}
-			Utf8Info.Content = append(Utf8Info.Content, b)
+		Utf8Info.Content = make([]byte, Utf8Info.length)
+		_, err = r.Read(Utf8Info.Content)
+		if err != nil {
+			return
 		}
 		info = Utf8Info
 	default:
@@ -140,12 +128,14 @@ func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
 	return
 }
 
+// ReadConstantPool reads all entries in a constant pool and return the count and entries.
 func (r *ClassFileReader) ReadConstantPool() (size int, entries []cpInfo, err error) {
 	size, err = r.ReadU2()
 	if err != nil {
 		return
 	}
 
+	// For some reason this is the one place where the length is one bigger then it needs to be?
 	for i := 0; i < size-1; i++ {
 		var entry cpInfo
 		entry, err = r.ReadCPInfo()

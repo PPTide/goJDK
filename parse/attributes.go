@@ -6,6 +6,7 @@ type AttributeInfo struct {
 	Info               []byte
 }
 
+// ReadAttributes reads attributes of a class/method/... and returns the size and all attributes.
 func (r *ClassFileReader) ReadAttributes() (size int, entries []AttributeInfo, err error) {
 	size, err = r.ReadU2()
 	if err != nil {
@@ -24,7 +25,8 @@ func (r *ClassFileReader) ReadAttributes() (size int, entries []AttributeInfo, e
 	return
 }
 
-func (r *ClassFileReader) ReadAttributeInfo() (info AttributeInfo, err error) {
+// ReadAttributeInfo reads all information for one attribute.
+func (r *ClassFileReader) ReadAttributeInfo() (info AttributeInfo, err error) { //TODO: differentiate between different Attributes here
 	info.AttributeNameIndex, err = r.ReadU2()
 	if err != nil {
 		return
@@ -35,10 +37,10 @@ func (r *ClassFileReader) ReadAttributeInfo() (info AttributeInfo, err error) {
 		return
 	}
 
-	for i := 0; i < info.attributeLength; i++ { // TODO: can be made faster by using r.Read() (also see the other instances of me doing this)
-		var b byte
-		b, err = r.ReadByte()
-		info.Info = append(info.Info, b)
+	info.Info = make([]byte, info.attributeLength)
+	_, err = r.Read(info.Info)
+	if err != nil {
+		return
 	}
 
 	return

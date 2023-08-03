@@ -8,20 +8,25 @@ import (
 	"os"
 )
 
+// ClassFileReader extends bytes.Reader to allow java specific readers.
 type ClassFileReader bytes.Reader
 
+// Len calls *bytes.Reader.Len()
 func (r *ClassFileReader) Len() int {
 	return ((*bytes.Reader)(r)).Len()
 }
 
+// Read calls *bytes.Reader.Read()
 func (r *ClassFileReader) Read(p []byte) (n int, err error) {
 	return ((*bytes.Reader)(r)).Read(p)
 }
 
+// ReadByte calls *bytes.Reader.ReadByte()
 func (r *ClassFileReader) ReadByte() (byte, error) {
 	return ((*bytes.Reader)(r)).ReadByte()
 }
 
+// ReadU4 reads 4 bytes and interprets them as a big endian int.
 func (r *ClassFileReader) ReadU4() (res int, err error) {
 	x := make([]byte, 4)
 
@@ -36,6 +41,7 @@ func (r *ClassFileReader) ReadU4() (res int, err error) {
 	return
 }
 
+// ReadU2 reads 2 bytes and interprets them as a big endian int.
 func (r *ClassFileReader) ReadU2() (res int, err error) {
 	x := make([]byte, 2)
 
@@ -50,6 +56,7 @@ func (r *ClassFileReader) ReadU2() (res int, err error) {
 	return
 }
 
+// decodeBigEndian reads multiple bytes as a big endian number and returns an int.
 func decodeBigEndian(b []byte) (o int) {
 	for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
 		b[i], b[j] = b[j], b[i]
@@ -60,6 +67,7 @@ func decodeBigEndian(b []byte) (o int) {
 	return
 }
 
+// ClassFile stores all the inner parts of a Java .class file.
 type ClassFile struct {
 	Magic             int
 	MinorVersion      int
@@ -79,6 +87,7 @@ type ClassFile struct {
 	Attributes        []AttributeInfo
 }
 
+// Parse a file and return a ClassFile.
 func Parse(filename string) (cF ClassFile, err error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -162,6 +171,7 @@ func Parse(filename string) (cF ClassFile, err error) {
 		return
 	}
 
+	// There shouldn't be any data left in the file at this point
 	if reader.Len() != 0 {
 		return cF, errors.New("couldn't fully read the .class file")
 	}
