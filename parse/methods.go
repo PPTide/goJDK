@@ -1,6 +1,6 @@
 package parse
 
-type methodInfo struct {
+type MethodInfo struct {
 	AccessFlags     int
 	NameIndex       int
 	DescriptorIndex int
@@ -8,14 +8,14 @@ type methodInfo struct {
 	Attributes      []AttributeInfo
 }
 
-func (r *ClassFileReader) ReadMethods() (size int, entries []methodInfo, err error) {
+func (r *ClassFileReader) ReadMethods() (size int, entries []MethodInfo, err error) {
 	size, err = r.ReadU2()
 	if err != nil {
 		return
 	}
 
 	for i := 0; i < size; i++ {
-		var entry methodInfo
+		var entry MethodInfo
 		entry, err = r.ReadMethodInfo()
 		entries = append(entries, entry)
 		if err != nil {
@@ -26,7 +26,7 @@ func (r *ClassFileReader) ReadMethods() (size int, entries []methodInfo, err err
 	return
 }
 
-func (r *ClassFileReader) ReadMethodInfo() (info methodInfo, err error) {
+func (r *ClassFileReader) ReadMethodInfo() (info MethodInfo, err error) {
 	info.AccessFlags, err = r.ReadU2()
 	if err != nil {
 		return

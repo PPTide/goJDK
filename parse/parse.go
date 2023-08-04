@@ -83,7 +83,7 @@ type ClassFile struct {
 	FieldsCount       int
 	Fields            interface{}
 	MethodsCount      int
-	Methods           []methodInfo
+	Methods           []MethodInfo
 	AttributesCount   int
 	Attributes        []AttributeInfo
 }
@@ -134,6 +134,7 @@ func (f *ClassFile) resolveIndexes() error {
 			return fmt.Errorf("unkown type trying to resolve indexes")
 		}
 	}
+	//TODO: add the same for interfaces, fields, methods and attributes
 	return nil
 }
 
