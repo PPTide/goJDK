@@ -10,18 +10,18 @@ import (
 
 func niceShow(file parse.ClassFile) {
 	Constants := make([]string, 0)
-	for i, info := range file.ConstantPool {
+	for i, info := range file.ConstantPool { // TODO: switch this to a switch case
 		if utf8, ok := info.(parse.ConstantUtf8Info); ok {
-			Constants = append(Constants, fmt.Sprintf("Utf8\t\t%s", string(utf8.Content)))
+			Constants = append(Constants, fmt.Sprintf("Utf8\t\t%s", utf8.Text))
 			continue
 		}
 		if methRef, ok := info.(parse.ConstantMethodrefInfo); ok {
 			Constants = append(Constants, fmt.Sprintf("Methodref\t\t#%d.#%d\t\t// %s.%s:%s",
 				methRef.ClassIndex,
 				methRef.NameAndTypeIndex,
-				getAsUtf8String(file.ConstantPool[methRef.ClassIndex-1].(parse.ConstantClassInfo).NameIndex, file),
-				getAsUtf8String(file.ConstantPool[methRef.NameAndTypeIndex-1].(parse.ConstantNameAndTypeInfo).NameIndex, file),
-				getAsUtf8String(file.ConstantPool[methRef.NameAndTypeIndex-1].(parse.ConstantNameAndTypeInfo).DescriptorIndex, file),
+				(*(*methRef.Class).(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text,
+				(*(*methRef.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text,
+				(*(*methRef.NameAndType).(parse.ConstantNameAndTypeInfo).Descriptor).(parse.ConstantUtf8Info).Text,
 			))
 			continue
 		}
@@ -29,16 +29,16 @@ func niceShow(file parse.ClassFile) {
 			Constants = append(Constants, fmt.Sprintf("Fieldref\t\t#%d.#%d\t\t// %s.%s:%s",
 				fieldRef.ClassIndex,
 				fieldRef.NameAndTypeIndex,
-				getAsUtf8String(file.ConstantPool[fieldRef.ClassIndex-1].(parse.ConstantClassInfo).NameIndex, file),
-				getAsUtf8String(file.ConstantPool[fieldRef.NameAndTypeIndex-1].(parse.ConstantNameAndTypeInfo).NameIndex, file),
-				getAsUtf8String(file.ConstantPool[fieldRef.NameAndTypeIndex-1].(parse.ConstantNameAndTypeInfo).DescriptorIndex, file),
+				(*(*fieldRef.Class).(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text,
+				(*(*fieldRef.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text,
+				(*(*fieldRef.NameAndType).(parse.ConstantNameAndTypeInfo).Descriptor).(parse.ConstantUtf8Info).Text,
 			))
 			continue
 		}
 		if class, ok := info.(parse.ConstantClassInfo); ok {
 			Constants = append(Constants, fmt.Sprintf("Class\t\t#%d\t\t// %s",
 				class.NameIndex,
-				getAsUtf8String(class.NameIndex, file),
+				(*class.Name).(parse.ConstantUtf8Info).Text,
 			))
 			continue
 		}
@@ -46,8 +46,8 @@ func niceShow(file parse.ClassFile) {
 			Constants = append(Constants, fmt.Sprintf("NameAndType\t#%d:%d\t\t// %s:%s",
 				nat.NameIndex,
 				nat.DescriptorIndex,
-				getAsUtf8String(nat.NameIndex, file),
-				getAsUtf8String(nat.DescriptorIndex, file),
+				(*nat.Name).(parse.ConstantUtf8Info).Text,
+				(*nat.Name).(parse.ConstantUtf8Info).Text,
 			))
 			continue
 		}

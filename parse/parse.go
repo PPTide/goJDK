@@ -3,6 +3,7 @@ package parse
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"os"
@@ -85,6 +86,55 @@ type ClassFile struct {
 	Methods           []methodInfo
 	AttributesCount   int
 	Attributes        []AttributeInfo
+}
+
+func (f *ClassFile) resolveIndexes() error {
+	for i, info := range f.ConstantPool {
+		switch t := info.(type) {
+		case ConstantUtf8Info:
+			t.Text = string(t.Content)
+			f.ConstantPool[i] = t
+		case ConstantNameAndTypeInfo:
+			if _, ok := f.ConstantPool[t.NameIndex-1].(ConstantUtf8Info); !ok {
+				return fmt.Errorf("name not of type ConstantUtf8Info")
+			}
+			t.Name = &f.ConstantPool[t.NameIndex-1]
+			if _, ok := f.ConstantPool[t.DescriptorIndex-1].(ConstantUtf8Info); !ok {
+				return fmt.Errorf("name not of type ConstantUtf8Info")
+			}
+			t.Descriptor = &f.ConstantPool[t.DescriptorIndex-1]
+			f.ConstantPool[i] = t
+		case ConstantClassInfo:
+			if _, ok := f.ConstantPool[t.NameIndex-1].(ConstantUtf8Info); !ok {
+				return fmt.Errorf("name not of type ConstantUtf8Info")
+			}
+			t.Name = &f.ConstantPool[t.NameIndex-1]
+			f.ConstantPool[i] = t
+		case ConstantMethodrefInfo:
+			if _, ok := f.ConstantPool[t.ClassIndex-1].(ConstantClassInfo); !ok {
+				return fmt.Errorf("name not of type ConstantClassInfo")
+			}
+			t.Class = &f.ConstantPool[t.ClassIndex-1]
+			if _, ok := f.ConstantPool[t.NameAndTypeIndex-1].(ConstantNameAndTypeInfo); !ok {
+				return fmt.Errorf("name not of type ConstantNameAndTypeInfo")
+			}
+			t.NameAndType = &f.ConstantPool[t.NameAndTypeIndex-1]
+			f.ConstantPool[i] = t
+		case ConstantFieldrefInfo:
+			if _, ok := f.ConstantPool[t.ClassIndex-1].(ConstantClassInfo); !ok {
+				return fmt.Errorf("name not of type ConstantClassInfo")
+			}
+			t.Class = &f.ConstantPool[t.ClassIndex-1]
+			if _, ok := f.ConstantPool[t.NameAndTypeIndex-1].(ConstantNameAndTypeInfo); !ok {
+				return fmt.Errorf("name not of type ConstantNameAndTypeInfo")
+			}
+			t.NameAndType = &f.ConstantPool[t.NameAndTypeIndex-1]
+			f.ConstantPool[i] = t
+		default:
+			return fmt.Errorf("unkown type trying to resolve indexes")
+		}
+	}
+	return nil
 }
 
 // Parse a file and return a ClassFile.
@@ -174,6 +224,11 @@ func Parse(filename string) (cF ClassFile, err error) {
 	// There shouldn't be any data left in the file at this point
 	if reader.Len() != 0 {
 		return cF, errors.New("couldn't fully read the .class file")
+	}
+
+	err = cF.resolveIndexes()
+	if err != nil {
+		return
 	}
 
 	return

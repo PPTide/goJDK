@@ -7,9 +7,11 @@ type cpInfo interface {
 }
 
 type ConstantMethodrefInfo struct {
-	tag              byte // u1 tag; (always 10)
-	ClassIndex       int  // u2 class_index;
-	NameAndTypeIndex int  // u2 name_and_type_index;
+	tag              byte    // u1 tag; (always 10)
+	Class            *cpInfo // ConstantClassInfo
+	ClassIndex       int     // u2 class_index;
+	NameAndType      *cpInfo // ConstantNameAndTypeInfo
+	NameAndTypeIndex int     // u2 name_and_type_index;
 }
 
 func (c ConstantMethodrefInfo) implementCPInfo() {
@@ -17,9 +19,11 @@ func (c ConstantMethodrefInfo) implementCPInfo() {
 }
 
 type ConstantFieldrefInfo struct {
-	tag              byte // u1 tag; (always 9)
-	ClassIndex       int  // u2 class_index;
-	NameAndTypeIndex int  // u2 name_and_type_index;
+	tag              byte    // u1 tag; (always 9)
+	Class            *cpInfo // ConstantClassInfo
+	ClassIndex       int     // u2 class_index;
+	NameAndType      *cpInfo // ConstantNameAndTypeInfo
+	NameAndTypeIndex int     // u2 name_and_type_index;
 }
 
 func (c ConstantFieldrefInfo) implementCPInfo() {
@@ -27,8 +31,9 @@ func (c ConstantFieldrefInfo) implementCPInfo() {
 }
 
 type ConstantClassInfo struct {
-	tag       byte // u1 tag;
-	NameIndex int  // u2 name_index;
+	tag       byte    // u1 tag;
+	Name      *cpInfo // ConstantUtf8Info
+	NameIndex int     // u2 name_index;
 }
 
 func (c ConstantClassInfo) implementCPInfo() {
@@ -36,9 +41,11 @@ func (c ConstantClassInfo) implementCPInfo() {
 }
 
 type ConstantNameAndTypeInfo struct {
-	tag             byte // u1 tag;
-	NameIndex       int  // u2 name_index;
-	DescriptorIndex int  // u2 descriptor_index;
+	tag             byte    // u1 tag;
+	Name            *cpInfo // ConstantUtf8Info
+	NameIndex       int     // u2 name_index;
+	Descriptor      *cpInfo // ConstantUtf8Info
+	DescriptorIndex int     // u2 descriptor_index;
 }
 
 func (c ConstantNameAndTypeInfo) implementCPInfo() {
@@ -46,8 +53,9 @@ func (c ConstantNameAndTypeInfo) implementCPInfo() {
 }
 
 type ConstantUtf8Info struct {
-	tag     byte   // 1 tag;
-	length  int    // u2 length;
+	tag     byte // 1 tag;
+	length  int  // u2 length;
+	Text    string
 	Content []byte // u1 bytes[length];
 }
 

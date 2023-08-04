@@ -13,4 +13,9 @@ func main() {
 	}
 
 	niceShow(res)
+
+	err = excecute(res)
+	if err != nil {
+		panic(err)
+	}
 }
