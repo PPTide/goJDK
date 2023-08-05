@@ -109,6 +109,15 @@ func init() {
 			}
 
 			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
+
+			methodClass := (*method.Class).(parse.ConstantClassInfo)
+			className := (*methodClass.Name).(parse.ConstantUtf8Info).Text
+			currentClass := s.file.ConstantPool[s.file.ThisClass-1].(parse.ConstantClassInfo)
+			currentClassName := (*currentClass.Name).(parse.ConstantUtf8Info).Text
+			if className != currentClassName {
+				return fmt.Errorf("support for different classes not implemented")
+			}
+
 			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
 			descriptor := (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text
@@ -229,7 +238,7 @@ func runMethod(methodName string, methodDescriptor string, s *state, args []int)
 			goto methodFound
 		}
 	}
-	return fmt.Errorf(`method "%s" found`, methodName)
+	return fmt.Errorf(`method "%s" not found`, methodName)
 methodFound:
 	descriptor := s.file.ConstantPool[mainMethod.DescriptorIndex-1].(parse.ConstantUtf8Info).Text
 	if !(descriptor == methodDescriptor) {
