@@ -7,6 +7,7 @@ class Square {
         return num * 2;
     }
     public static void main(String[] args) {
-        System.out.println(square(times2(4)));
+        int eight = times2(4);
+        System.out.println(square(eight));
     }
 }

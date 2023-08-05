@@ -59,6 +59,34 @@ func init() {
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[3]) // TODO: catch errors
 			return nil
 		},
+		59: func(s *state, f frame) error { // istore_0
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[0] = lastVal
+			return nil
+		},
+		60: func(s *state, f frame) error { // istore_1
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[1] = lastVal
+			return nil
+		},
+		61: func(s *state, f frame) error { // istore_2
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[2] = lastVal
+			return nil
+		},
+		62: func(s *state, f frame) error { // istore_3
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[3] = lastVal
+			return nil
+		},
 		104: func(s *state, f frame) error { // imul
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
@@ -171,7 +199,7 @@ codeFound:
 	if err != nil {
 		return err
 	}
-	_, err = reader.ReadU2() // maxLocals
+	maxLocals, err := reader.ReadU2() // maxLocals
 	if err != nil {
 		return err
 	}
@@ -200,10 +228,12 @@ codeFound:
 
 	// ------------------- Code Execution ---------------------
 	operandStack := make([]int, 0)
+	localVariable := make([]int, maxLocals)
 	f := frame{
-		codeReader:   (*parse.ClassFileReader)(bytes.NewReader(code)),
-		operandStack: &operandStack,
-		file:         file,
+		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
+		operandStack:  &operandStack,
+		localVariable: &localVariable,
+		file:          file,
 	}
 	s := state{
 		frames: make([]frame, 0),
