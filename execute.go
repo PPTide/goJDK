@@ -147,7 +147,10 @@ codeFound:
 			return fmt.Errorf("instruction \"%d\" not implemented", b)
 		}
 
-		instructionSet[b](s)
+		err = instructionSet[b](s)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
