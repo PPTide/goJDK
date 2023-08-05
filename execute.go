@@ -12,8 +12,9 @@ const (
 )
 
 type state struct {
-	codeReader   *bytes.Reader
+	codeReader   *parse.ClassFileReader
 	operandStack *[]int // FIXME: there are also different types of variables xD
+	file         parse.ClassFile
 }
 
 var instructionSet = map[byte]func(s state) error{
@@ -46,8 +47,13 @@ var instructionSet = map[byte]func(s state) error{
 	182: func(s state) error { // invokevirtual
 		// TODO: Invoke instance method; dispatch based on class
 		// in my test case this will always be System.out.println(int)
-		_, err := s.codeReader.ReadByte()
-		_, err = s.codeReader.ReadByte()
+		address, err := s.codeReader.ReadU2()
+		method := s.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
+		methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
+		name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
+		if name != "println" {
+			return fmt.Errorf(`function "%s" not implemented`, name)
+		}
 		lastVal := (*s.operandStack)[len(*s.operandStack)-1]
 		*s.operandStack = (*s.operandStack)[:len(*s.operandStack)-1]
 		println(lastVal)
@@ -126,8 +132,9 @@ codeFound:
 	// ------------------- Code Execution ---------------------
 	operandStack := make([]int, 0)
 	s := state{
-		codeReader:   bytes.NewReader(code),
+		codeReader:   (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack: &operandStack,
+		file:         file,
 	}
 
 	for s.codeReader.Len() > 0 {

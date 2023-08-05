@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	cmd := exec.Command("javac", "main.java")
+	cmd := exec.Command("javac", `main.java`)
 	if err := cmd.Run(); err != nil {
 		log.Fatal(err)
 	}
