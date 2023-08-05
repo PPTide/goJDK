@@ -18,8 +18,8 @@ type state struct {
 
 type frame struct {
 	codeReader    *parse.ClassFileReader
-	operandStack  *[]int // FIXME: there are also different types of variables xD
-	localVariable *[]int // FIXME: see above ;)
+	operandStack  *[]interface{} // FIXME: there are also different types of variables xD
+	localVariable *[]interface{} // FIXME: see above ;)
 	file          parse.ClassFile
 }
 
@@ -42,6 +42,18 @@ func init() {
 		7: func(s *state, f frame) error { // iconst_4
 			*f.operandStack = append(*f.operandStack, 4)
 			return nil
+		},
+		18: func(s *state, f frame) error { // ldc
+			idx, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			if utf8, ok := s.file.ConstantPool[idx].(parse.ConstantUtf8Info); ok {
+				*f.operandStack = append(*f.operandStack, utf8.Text)
+				return nil
+			}
+			return fmt.Errorf("ldc (18) only implemented for string")
 		},
 		26: func(s *state, f frame) error { // iload_0
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[0]) // TODO: catch errors
@@ -88,9 +100,9 @@ func init() {
 			return nil
 		},
 		104: func(s *state, f frame) error { // imul
-			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
-			lastVal2 := (*f.operandStack)[len(*f.operandStack)-1]
+			lastVal2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			*f.operandStack = append(*f.operandStack, lastVal*lastVal2)
@@ -118,6 +130,10 @@ func init() {
 			// TODO: Invoke instance method; dispatch based on class
 			// in my test case this will always be System.out.println(int)
 			address, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+
 			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
 			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
@@ -126,9 +142,16 @@ func init() {
 			}
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
-			println(lastVal)
+			if out, ok := lastVal.(int); ok {
+				println(out)
+				return nil
+			}
+			if out, ok := lastVal.(string); ok {
+				println(out)
+				return nil
+			}
 
-			return err
+			return fmt.Errorf("unimplementet type for println")
 		},
 		184: func(s *state, f frame) error { // invokestatic
 			address, err := f.codeReader.ReadU2()
@@ -155,8 +178,8 @@ func init() {
 			}
 			argCount := 1 // TODO: this only works for the example
 			_ = argCount
-			args := make([]int, 0)
-			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			args := make([]interface{}, 0)
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			args = append(args, lastVal)
 
@@ -227,8 +250,8 @@ codeFound:
 	}
 
 	// ------------------- Code Execution ---------------------
-	operandStack := make([]int, 0)
-	localVariable := make([]int, maxLocals)
+	operandStack := make([]interface{}, 0)
+	localVariable := make([]interface{}, maxLocals)
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack:  &operandStack,
@@ -260,7 +283,7 @@ codeFound:
 	return nil
 }
 
-func runMethod(methodName string, methodDescriptor string, s *state, args []int) error {
+func runMethod(methodName string, methodDescriptor string, s *state, args []interface{}) error {
 	var mainMethod parse.MethodInfo
 	for _, method := range s.file.Methods {
 		if s.file.ConstantPool[method.NameIndex-1].(parse.ConstantUtf8Info).Text == methodName {
@@ -317,7 +340,7 @@ codeFound:
 	}
 
 	// ------------------- Code Execution ---------------------
-	operandStack := make([]int, 0)
+	operandStack := make([]interface{}, 0)
 	localVariable := args
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),

@@ -2,15 +2,15 @@ package parse
 
 import "fmt"
 
-type cpInfo interface {
+type CpInfo interface {
 	implementCPInfo()
 }
 
 type ConstantMethodrefInfo struct {
 	tag              byte    // u1 tag; (always 10)
-	Class            *cpInfo // ConstantClassInfo
+	Class            *CpInfo // ConstantClassInfo
 	ClassIndex       int     // u2 class_index;
-	NameAndType      *cpInfo // ConstantNameAndTypeInfo
+	NameAndType      *CpInfo // ConstantNameAndTypeInfo
 	NameAndTypeIndex int     // u2 name_and_type_index;
 }
 
@@ -20,9 +20,9 @@ func (c ConstantMethodrefInfo) implementCPInfo() {
 
 type ConstantFieldrefInfo struct {
 	tag              byte    // u1 tag; (always 9)
-	Class            *cpInfo // ConstantClassInfo
+	Class            *CpInfo // ConstantClassInfo
 	ClassIndex       int     // u2 class_index;
-	NameAndType      *cpInfo // ConstantNameAndTypeInfo
+	NameAndType      *CpInfo // ConstantNameAndTypeInfo
 	NameAndTypeIndex int     // u2 name_and_type_index;
 }
 
@@ -32,7 +32,7 @@ func (c ConstantFieldrefInfo) implementCPInfo() {
 
 type ConstantClassInfo struct {
 	tag       byte    // u1 tag;
-	Name      *cpInfo // ConstantUtf8Info
+	Name      *CpInfo // ConstantUtf8Info
 	NameIndex int     // u2 name_index;
 }
 
@@ -42,13 +42,24 @@ func (c ConstantClassInfo) implementCPInfo() {
 
 type ConstantNameAndTypeInfo struct {
 	tag             byte    // u1 tag;
-	Name            *cpInfo // ConstantUtf8Info
+	Name            *CpInfo // ConstantUtf8Info
 	NameIndex       int     // u2 name_index;
-	Descriptor      *cpInfo // ConstantUtf8Info
+	Descriptor      *CpInfo // ConstantUtf8Info
 	DescriptorIndex int     // u2 descriptor_index;
 }
 
 func (c ConstantNameAndTypeInfo) implementCPInfo() {
+	return
+}
+
+type ConstantStringInfo struct {
+	tag         byte    // u1 tag;
+	String      *CpInfo // ConstantUtf8Info
+	StringIndex int     // u2 string_index;
+
+}
+
+func (c ConstantStringInfo) implementCPInfo() {
 	return
 }
 
@@ -64,7 +75,7 @@ func (c ConstantUtf8Info) implementCPInfo() {
 }
 
 // ReadCPInfo reads one constant pool entry.
-func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
+func (r *ClassFileReader) ReadCPInfo() (info CpInfo, err error) {
 	tag, err := r.ReadByte()
 	if err != nil {
 		return
@@ -80,6 +91,14 @@ func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
 		}
 
 		info = CInfo
+	case 8: // CONSTANT_String
+		StringInfo := ConstantStringInfo{tag: 8}
+		StringInfo.StringIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+
+		info = StringInfo
 	case 9: // CONSTANT_Fieldref
 		FieldredInfo := ConstantFieldrefInfo{tag: 9}
 		FieldredInfo.ClassIndex, err = r.ReadU2()
@@ -137,7 +156,7 @@ func (r *ClassFileReader) ReadCPInfo() (info cpInfo, err error) {
 }
 
 // ReadConstantPool reads all entries in a constant pool and return the count and entries.
-func (r *ClassFileReader) ReadConstantPool() (size int, entries []cpInfo, err error) {
+func (r *ClassFileReader) ReadConstantPool() (size int, entries []CpInfo, err error) {
 	size, err = r.ReadU2()
 	if err != nil {
 		return
@@ -145,7 +164,7 @@ func (r *ClassFileReader) ReadConstantPool() (size int, entries []cpInfo, err er
 
 	// For some reason this is the one place where the length is one bigger then it needs to be?
 	for i := 0; i < size-1; i++ {
-		var entry cpInfo
+		var entry CpInfo
 		entry, err = r.ReadCPInfo()
 		if err != nil {
 			return

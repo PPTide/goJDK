@@ -74,7 +74,7 @@ type ClassFile struct {
 	MinorVersion      int
 	MajorVersion      int
 	ConstantPoolCount int
-	ConstantPool      []cpInfo
+	ConstantPool      []CpInfo
 	AccessFlags       int
 	ThisClass         int
 	SuperClass        int
@@ -130,6 +130,11 @@ func (f *ClassFile) resolveIndexes() error {
 			}
 			t.NameAndType = &f.ConstantPool[t.NameAndTypeIndex-1]
 			f.ConstantPool[i] = t
+		case ConstantStringInfo:
+			if _, ok := f.ConstantPool[t.StringIndex-1].(ConstantUtf8Info); !ok {
+				return fmt.Errorf("name not of type ConstantUft8Info")
+			}
+			t.String = &f.ConstantPool[t.StringIndex-1]
 		default:
 			return fmt.Errorf("unkown type trying to resolve indexes")
 		}

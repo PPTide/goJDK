@@ -11,3 +11,9 @@ class Square {
         System.out.println(square(eight));
     }
 }
+
+class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hi :)");
+    }
+}

@@ -12,7 +12,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	res, err := parse.Parse("Square.class")
+	res, err := parse.Parse("HelloWorld.class")
 	//pp.Println(res)
 	if err != nil {
 		//niceShow(res)
