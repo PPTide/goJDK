@@ -3,7 +3,10 @@ class Square {
     static int square(int num) {
         return num * num;
     }
+    static int times2(int num) {
+        return num * 2;
+    }
     public static void main(String[] args) {
-        System.out.println(square(4));
+        System.out.println(square(times2(4)));
     }
 }
