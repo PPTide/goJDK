@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"github.com/PPTide/gojdk/parse"
 	"log"
 	"os/exec"
@@ -9,10 +10,11 @@ import (
 func main() {
 	cmd := exec.Command("javac", `main.java`)
 	if err := cmd.Run(); err != nil {
-		log.Fatal(err)
+		out, _ := cmd.CombinedOutput()
+		log.Fatal(errors.Join(err, errors.New(string(out))))
 	}
 
-	res, err := parse.Parse("HelloWorld.class")
+	res, err := parse.Parse("Main.class")
 	//pp.Println(res)
 	if err != nil {
 		//niceShow(res)

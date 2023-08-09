@@ -43,6 +43,15 @@ func init() {
 			*f.operandStack = append(*f.operandStack, 4)
 			return nil
 		},
+		16: func(s *state, f frame) error { // bipush
+			byte, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			*f.operandStack = append(*f.operandStack, int(byte))
+			return nil
+		},
 		18: func(s *state, f frame) error { // ldc
 			idx, err := f.codeReader.ReadByte()
 			if err != nil {
