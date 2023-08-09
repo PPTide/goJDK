@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/PPTide/gojdk/parse"
+	"io"
+	"strconv"
 )
 
 const (
@@ -27,6 +30,14 @@ var instructionSet map[byte]func(s *state, f frame) error
 
 func init() {
 	instructionSet = map[byte]func(s *state, f frame) error{
+		2: func(s *state, f frame) error { // iconst_m1
+			*f.operandStack = append(*f.operandStack, -1)
+			return nil
+		},
+		3: func(s *state, f frame) error { // iconst_0
+			*f.operandStack = append(*f.operandStack, 0)
+			return nil
+		},
 		4: func(s *state, f frame) error { // iconst_1
 			*f.operandStack = append(*f.operandStack, 1)
 			return nil
@@ -108,6 +119,24 @@ func init() {
 			(*f.localVariable)[3] = lastVal
 			return nil
 		},
+		96: func(s *state, f frame) error { // iadd
+			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			*f.operandStack = append(*f.operandStack, value1+value2)
+			return nil
+		},
+		100: func(s *state, f frame) error { // isub
+			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			*f.operandStack = append(*f.operandStack, value1-value2)
+			return nil
+		},
 		104: func(s *state, f frame) error { // imul
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
@@ -117,16 +146,94 @@ func init() {
 			*f.operandStack = append(*f.operandStack, lastVal*lastVal2)
 			return nil
 		},
+		132: func(s *state, f frame) error { // iinc
+			index, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+			constVal, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			(*f.localVariable)[index] = (*f.localVariable)[index].(int) + int(constVal)
+			return nil
+		},
+		162: func(s *state, f frame) error { // if_icmpge <- >=
+			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			branchOffset, err := f.codeReader.ReadU2() //FIXME: might be negative
+			if err != nil {
+				return err
+			}
+			branchOffset = branchOffset - 3 // get the offset without the branch bytes
+
+			if value1 >= value2 {
+				_, err := f.codeReader.Seek(int64(branchOffset), io.SeekCurrent)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		163: func(s *state, f frame) error { // if_icmpgt <- >
+			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			branchOffset, err := f.codeReader.ReadU2() //FIXME: might be negative
+			if err != nil {
+				return err
+			}
+			branchOffset = branchOffset - 3 // get the offset without the branch bytes
+
+			if value1 > value2 {
+				_, err := f.codeReader.Seek(int64(branchOffset), io.SeekCurrent)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		167: func(s *state, f frame) error {
+			branchOffsetTmp, err := f.codeReader.ReadU2() //FIXME: might be negative
+			if err != nil {
+				return err
+			}
+
+			branchOffset := int16(branchOffsetTmp)
+
+			branchOffset = branchOffset - 3 // get the offset without the branch bytes
+
+			_, err = f.codeReader.Seek(int64(branchOffset), io.SeekCurrent)
+			return err
+		},
 		172: func(s *state, f frame) error { // ireturn
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 
 			*s.frames[len(s.frames)-2].operandStack = append(*s.frames[len(s.frames)-2].operandStack, lastVal)
 
 			s.frames = s.frames[:len(s.frames)-1]
+
+			_, err := f.codeReader.Seek(0, io.SeekEnd)
+			if err != nil {
+				return err
+			}
+
 			return nil // TODO: check errors
 		},
 		177: func(s *state, f frame) error { // return
 			// TODO: return void and empty operandStack
+
+			_, err := f.codeReader.Seek(0, io.SeekEnd)
+			if err != nil {
+				return err
+			}
+
 			return nil
 		},
 		178: func(s *state, f frame) error { // getstatic
@@ -146,21 +253,36 @@ func init() {
 			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
 			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
-			if name != "println" {
+			switch name { // TODO: find a nicer place to put this
+			case "println":
+				lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+				if out, ok := lastVal.(int); ok {
+					println(out)
+					return nil
+				}
+				if out, ok := lastVal.(string); ok {
+					println(out)
+					return nil
+				}
+
+				return fmt.Errorf("unimplementet type for println")
+			case "print":
+				lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+				if out, ok := lastVal.(int); ok {
+					print(out)
+					return nil
+				}
+				if out, ok := lastVal.(string); ok {
+					print(out)
+					return nil
+				}
+
+				return fmt.Errorf("unimplementet type for print")
+			default:
 				return fmt.Errorf(`function "%s" not implemented`, name)
 			}
-			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
-			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
-			if out, ok := lastVal.(int); ok {
-				println(out)
-				return nil
-			}
-			if out, ok := lastVal.(string); ok {
-				println(out)
-				return nil
-			}
-
-			return fmt.Errorf("unimplementet type for println")
 		},
 		184: func(s *state, f frame) error { // invokestatic
 			address, err := f.codeReader.ReadU2()
@@ -198,6 +320,90 @@ func init() {
 			}
 
 			return err
+		},
+		186: func(s *state, f frame) error { // invokedynamic
+			address, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+			check, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+			if check != 0 {
+				return errors.New("unexpected value in execution of invokedynamic")
+			}
+
+			DynamicInfo := f.file.ConstantPool[address-1].(parse.ConstantInvokeDynamicInfo)
+
+			var bootstrapMethodAttribute parse.AttributeInfo
+
+			for _, attribute := range f.file.Attributes { //TODO: extract BootstrapMethods in extra function
+				attributeName := f.file.ConstantPool[attribute.AttributeNameIndex-1].(parse.ConstantUtf8Info).Text
+
+				if attributeName == "BootstrapMethods" {
+					bootstrapMethodAttribute = attribute
+					goto foundAttribute
+				}
+			}
+			return errors.New("BootstrapMethod attribute not found")
+
+		foundAttribute:
+			r := (*parse.ClassFileReader)(bytes.NewReader(bootstrapMethodAttribute.Info))
+			numBootstrapMethods, err := r.ReadU2()
+			if err != nil {
+				return err
+			}
+
+			bootstrapMethods := make([]struct {
+				bootstrapMethodRef    int
+				numBootstrapArguments int
+				bootstrapArguments    []int // index to constant pool
+			}, 0)
+
+			for i := 0; i < numBootstrapMethods; i++ {
+				x := struct {
+					bootstrapMethodRef    int
+					numBootstrapArguments int
+					bootstrapArguments    []int
+				}{}
+				x.bootstrapMethodRef, err = r.ReadU2()
+				if err != nil {
+					return err
+				}
+				x.numBootstrapArguments, err = r.ReadU2()
+				if err != nil {
+					return err
+				}
+
+				for j := 0; j < x.numBootstrapArguments; j++ {
+					argument, err := r.ReadU2()
+					if err != nil {
+						return err
+					}
+					x.bootstrapArguments = append(x.bootstrapArguments, argument)
+				}
+
+				bootstrapMethods = append(bootstrapMethods, x)
+			}
+			// ------------ End Search for BootstrapMethods ------------
+
+			bootstrapMethod := bootstrapMethods[DynamicInfo.BootstrapMethodAttrIndex]
+
+			if (*(*DynamicInfo.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text != "makeConcatWithConstants" {
+				return fmt.Errorf(`unknown Dynamic funtion "%s"`, (*(*DynamicInfo.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text)
+			}
+
+			// FIXME: expects only makeConcatWithConstants
+			lastVal := strconv.Itoa((*f.operandStack)[len(*f.operandStack)-1].(int))
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			string2Index := bootstrapMethod.bootstrapArguments[0]
+			string2 := (*f.file.ConstantPool[string2Index-1].(parse.ConstantStringInfo).String).(parse.ConstantUtf8Info).Text
+
+			*f.operandStack = append(*f.operandStack, lastVal+string2)
+
+			return nil
 		},
 	}
 }

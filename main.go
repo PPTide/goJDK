@@ -14,7 +14,7 @@ func main() {
 		log.Fatal(errors.Join(err, errors.New(string(out))))
 	}
 
-	res, err := parse.Parse("Main.class")
+	res, err := parse.Parse("Hello.class")
 	//pp.Println(res)
 	if err != nil {
 		//niceShow(res)

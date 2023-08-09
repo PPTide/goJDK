@@ -74,6 +74,29 @@ func (c ConstantUtf8Info) implementCPInfo() {
 	return
 }
 
+type ConstantInvokeDynamicInfo struct {
+	tag byte
+	//bootstrapMethodAttr *CpInfo //
+	BootstrapMethodAttrIndex int     // u2
+	NameAndType              *CpInfo // ConstantNameAndTypeInfo, ConstantMethodrefInfo or ConstantInterfaceMethodrefInfo
+	NameAndTypeIndex         int     // u2
+}
+
+func (c ConstantInvokeDynamicInfo) implementCPInfo() {
+	return
+}
+
+type ConstantMethodHandleInfo struct {
+	tag            byte
+	ReferenceKind  byte    // u1
+	Reference      *CpInfo // one of ConstantFieldrefInfo,
+	ReferenceIndex int     // u2
+}
+
+func (c ConstantMethodHandleInfo) implementCPInfo() {
+	return
+}
+
 // ReadCPInfo reads one constant pool entry.
 func (r *ClassFileReader) ReadCPInfo() (info CpInfo, err error) {
 	tag, err := r.ReadByte()
@@ -147,6 +170,25 @@ func (r *ClassFileReader) ReadCPInfo() (info CpInfo, err error) {
 			return
 		}
 		info = Utf8Info
+	case 18: // CONSTANT_InvokeDynamic
+		InvokeDynamixInfo := ConstantInvokeDynamicInfo{tag: 18}
+		InvokeDynamixInfo.BootstrapMethodAttrIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+		InvokeDynamixInfo.NameAndTypeIndex, err = r.ReadU2()
+		info = InvokeDynamixInfo
+	case 15: // CONSTANT_MethodHandle
+		MethodHandleInfo := ConstantMethodHandleInfo{tag: 15}
+		MethodHandleInfo.ReferenceKind, err = r.ReadByte()
+		if err != nil {
+			return
+		}
+		MethodHandleInfo.ReferenceIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+		info = MethodHandleInfo
 	default:
 		err = fmt.Errorf(`constant pool tag "%d" not implemented`, tag)
 		return

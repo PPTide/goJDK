@@ -57,6 +57,11 @@ func (r *ClassFileReader) ReadU2() (res int, err error) {
 	return
 }
 
+// Seek calls bytes.Reader.Seek() (implement io.Seeker)
+func (r *ClassFileReader) Seek(offset int64, whence int) (int64, error) {
+	return ((*bytes.Reader)(r)).Seek(offset, whence)
+}
+
 // decodeBigEndian reads multiple bytes as a big endian number and returns an int.
 func decodeBigEndian(b []byte) (o int) {
 	for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
@@ -135,6 +140,17 @@ func (f *ClassFile) resolveIndexes() error {
 				return fmt.Errorf("name not of type ConstantUft8Info")
 			}
 			t.String = &f.ConstantPool[t.StringIndex-1]
+			f.ConstantPool[i] = t
+		case ConstantInvokeDynamicInfo:
+			if _, ok := f.ConstantPool[t.NameAndTypeIndex-1].(ConstantNameAndTypeInfo); !ok {
+				return fmt.Errorf("name not of type ConstantNameAndTypeInfo")
+			}
+			t.NameAndType = &f.ConstantPool[t.NameAndTypeIndex-1]
+			f.ConstantPool[i] = t
+		case ConstantMethodHandleInfo:
+			//TODO: Check reference using reference kind
+			t.Reference = &f.ConstantPool[t.ReferenceIndex]
+			f.ConstantPool[i] = t
 		default:
 			return fmt.Errorf("unkown type trying to resolve indexes")
 		}
