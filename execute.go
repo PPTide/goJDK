@@ -11,6 +11,8 @@ const (
 	methodFlagAccStatic = 8
 )
 
+type variable interface{}
+
 type state struct {
 	frames []frame
 	files  []parse.ClassFile
@@ -18,9 +20,16 @@ type state struct {
 
 type frame struct {
 	codeReader    *parse.ClassFileReader
-	operandStack  *[]interface{} // FIXME: there are also different types of variables xD
-	localVariable *[]interface{} // FIXME: see above ;)
+	operandStack  *[]variable // FIXME: there are also different types of variables xD
+	localVariable *[]variable // FIXME: see above ;)
 	file          parse.ClassFile
+}
+
+type class struct {
+	//methods map[string]func() error
+	isVirtual bool
+	name      string
+	vars      map[string]variable
 }
 
 func execute(file parse.ClassFile) error {
@@ -80,8 +89,8 @@ codeFound:
 	}
 
 	// ------------------- Code Execution ---------------------
-	operandStack := make([]interface{}, 0)
-	localVariable := make([]interface{}, maxLocals)
+	operandStack := make([]variable, 0)
+	localVariable := make([]variable, maxLocals)
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack:  &operandStack,
@@ -115,7 +124,7 @@ codeFound:
 	return nil
 }
 
-func runMethod(methodName string, methodDescriptor string, s *state, args []interface{}) error { // TODO: cashing
+func runMethod(methodName string, methodDescriptor string, s *state, args []variable) error { // TODO: cashing
 	var mainMethod parse.MethodInfo
 	var file parse.ClassFile
 	for _, classFile := range s.files {
@@ -177,7 +186,7 @@ codeFound:
 	}
 
 	// ------------------- Code Execution ---------------------
-	operandStack := make([]interface{}, 0)
+	operandStack := make([]variable, 0)
 	localVariable := args
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),

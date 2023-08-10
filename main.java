@@ -17,3 +17,18 @@ class HelloWorld {
         System.out.println("Hi 3^2 = " + Square.square(3));
     }
 }
+
+class Hello {
+    public static int fib(int n) {
+        if (n <= 1)
+            return n;
+        return fib(n - 1) + fib(n - 2);
+    }
+
+    public static void main(String args[]) {
+        int N = 100;
+        for (int i = 0; i < N; i++) {
+            System.out.print(fib(i) + " ");
+        }
+    }
+}

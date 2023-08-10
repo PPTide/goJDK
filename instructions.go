@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/PPTide/gojdk/parse"
 	"io"
+	"reflect"
 	"strconv"
 )
 
@@ -58,11 +59,14 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				return err
 			}
 
-			if utf8, ok := f.file.ConstantPool[idx].(parse.ConstantUtf8Info); ok {
-				*f.operandStack = append(*f.operandStack, utf8.Text)
+			switch t := f.file.ConstantPool[idx-1].(type) {
+			case parse.ConstantStringInfo:
+				*f.operandStack = append(*f.operandStack, (*t.String).(parse.ConstantUtf8Info).Text)
 				return nil
+			default:
+				_ = t
+				return fmt.Errorf("ldc (18) not implemented for %s", reflect.TypeOf(f.file.ConstantPool[idx-1]))
 			}
-			return fmt.Errorf("ldc (18) only implemented for string")
 		}, nil
 	case 26:
 		return func(s *state, f frame) error { // iload_0
@@ -114,6 +118,11 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			(*f.localVariable)[3] = lastVal
+			return nil
+		}, nil
+	case 89: // dup
+		return func(s *state, f frame) error {
+			*f.operandStack = append(*f.operandStack, (*f.operandStack)[len(*f.operandStack)-1])
 			return nil
 		}, nil
 	case 96:
@@ -249,8 +258,8 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			_, err = f.codeReader.ReadByte()
 			return err
 		}, nil
-	case 182:
-		return func(s *state, f frame) error { // invokevirtual
+	case 182: // invokevirtual
+		return func(s *state, f frame) error {
 			// TODO: Invoke instance method; dispatch based on class
 			// in my test case this will always be System.out.println(int)
 			address, err := f.codeReader.ReadU2()
@@ -261,6 +270,8 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
 			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
+			descriptor := (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text
+			className := (*(*method.Class).(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text
 			switch name { // TODO: find a nicer place to put this
 			case "println":
 				lastVal := (*f.operandStack)[len(*f.operandStack)-1]
@@ -273,6 +284,8 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 					println(out)
 					return nil
 				}
+				_ = (*f.operandStack)[:len(*f.operandStack)-1] // objectref
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 				return fmt.Errorf("unimplementet type for println")
 			case "print":
@@ -286,10 +299,70 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 					print(out)
 					return nil
 				}
+				_ = (*f.operandStack)[:len(*f.operandStack)-1] // objectref
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 				return fmt.Errorf("unimplementet type for print")
+			case "append":
+				if className != "java/lang/StringBuilder" {
+					return fmt.Errorf("unknow function append in class " + className)
+				}
+				if !((descriptor == "(Ljava/lang/String;)Ljava/lang/StringBuilder;") ||
+					(descriptor == "(I)Ljava/lang/StringBuilder;")) {
+					return fmt.Errorf(`unexpected descriptor "%s" for append`, (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text)
+				}
+
+				arg1 := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+				objectRef := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+				_, _ = arg1, objectRef // TODO: add more type checking
+
+				toAppend, err := toString(arg1)
+				if err != nil {
+					return err
+				}
+
+				(objectRef.(class)).vars["string"] = (objectRef.(class)).vars["string"].(string) + toAppend
+
+				*f.operandStack = append(*f.operandStack, objectRef)
+
+				return nil
+			case "toString":
+				if className != "java/lang/StringBuilder" {
+					return fmt.Errorf("unknow function toString in class " + className)
+				}
+				if !(descriptor == "()Ljava/lang/String;") {
+					return fmt.Errorf(`unexpected descriptor "%s" for toString`, (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text)
+				}
+
+				objectRef := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+				*f.operandStack = append(*f.operandStack, objectRef.(class).vars["string"].(string))
+
+				return nil
 			default:
-				return fmt.Errorf(`function "%s" not implemented`, name)
+				return fmt.Errorf(`function "%s" not implemented (invokevirtual)`, name)
+			}
+		}, nil
+	case 183: // invokespecial
+		return func(s *state, f frame) error {
+			// TODO: Invoke instance method; special handling for superclass, private, and instance initialization method invocations
+			address, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+
+			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
+			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
+			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
+			switch name { // TODO: find a nicer place to put this
+			case "<init>":
+				return nil // FIXME: THIS WILL NEVER WORK
+			default:
+				return fmt.Errorf(`function "%s" not implemented (invokespecial)`, name)
 			}
 		}, nil
 	case 184:
@@ -334,7 +407,7 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			}
 			argCount := 1 // TODO: this only works for the example
 			_ = argCount
-			args := make([]interface{}, 0)
+			args := make([]variable, 0)
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			args = append(args, lastVal)
@@ -428,10 +501,43 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			string2Index := bootstrapMethod.bootstrapArguments[0]
 			string2 := (*f.file.ConstantPool[string2Index-1].(parse.ConstantStringInfo).String).(parse.ConstantUtf8Info).Text
 
-			*f.operandStack = append(*f.operandStack, lastVal+string2)
+			*f.operandStack = append(*f.operandStack, string2+lastVal)
 
 			return nil
 		}, nil
+	case 187: // new
+		return func(s *state, f frame) error {
+			address, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+			name := (*f.file.ConstantPool[address-1].(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text
+			if name == "java/lang/StringBuilder" {
+				classInst := class{
+					isVirtual: true,
+					name:      name,
+					vars:      make(map[string]variable),
+				}
+				classInst.vars["initialCapacity"] = 16
+				classInst.vars["string"] = ""
+				*f.operandStack = append(*f.operandStack, classInst)
+				return nil
+			}
+			return fmt.Errorf(`_new_ not implemented for "%s"`, name)
+		}, nil
 	}
-	return nil, fmt.Errorf(`unknown instruction "%s"`, instruction)
+	return nil, fmt.Errorf(`unknown instruction "%d"`, instruction)
+}
+
+func toString(from variable) (string, error) {
+	to := ""
+	switch t := from.(type) {
+	case string:
+		to = t
+	case int:
+		to = strconv.Itoa(t)
+	default:
+		return "", fmt.Errorf("type %s not implemented for toString", reflect.TypeOf(t))
+	}
+	return to, nil
 }
