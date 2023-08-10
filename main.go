@@ -3,11 +3,13 @@ package main
 import (
 	"errors"
 	"github.com/PPTide/gojdk/parse"
+	//"github.com/pkg/profile"
 	"log"
 	"os/exec"
 )
 
 func main() {
+	//defer profile.Start().Stop()
 	cmd := exec.Command("javac", `main.java`)
 	if err := cmd.Run(); err != nil {
 		out, _ := cmd.CombinedOutput()

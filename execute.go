@@ -26,44 +26,50 @@ type frame struct {
 	file          parse.ClassFile
 }
 
-var instructionSet map[byte]func(s *state, f frame) error
-
-func init() {
-	instructionSet = map[byte]func(s *state, f frame) error{
-		2: func(s *state, f frame) error { // iconst_m1
+func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
+	switch instruction {
+	case 2:
+		return func(s *state, f frame) error { // iconst_m1
 			*f.operandStack = append(*f.operandStack, -1)
 			return nil
-		},
-		3: func(s *state, f frame) error { // iconst_0
+		}, nil
+	case 3:
+		return func(s *state, f frame) error { // iconst_0
 			*f.operandStack = append(*f.operandStack, 0)
 			return nil
-		},
-		4: func(s *state, f frame) error { // iconst_1
+		}, nil
+	case 4:
+		return func(s *state, f frame) error { // iconst_1
 			*f.operandStack = append(*f.operandStack, 1)
 			return nil
-		},
-		5: func(s *state, f frame) error { // iconst_2
+		}, nil
+	case 5:
+		return func(s *state, f frame) error { // iconst_2
 			*f.operandStack = append(*f.operandStack, 2)
 			return nil
-		},
-		6: func(s *state, f frame) error { // iconst_3
+		}, nil
+	case 6:
+		return func(s *state, f frame) error { // iconst_3
 			*f.operandStack = append(*f.operandStack, 3)
 			return nil
-		},
-		7: func(s *state, f frame) error { // iconst_4
+		}, nil
+	case 7:
+		return func(s *state, f frame) error { // iconst_4
 			*f.operandStack = append(*f.operandStack, 4)
 			return nil
-		},
-		16: func(s *state, f frame) error { // bipush
-			byte, err := f.codeReader.ReadByte()
+		}, nil
+	case 16:
+		return func(s *state, f frame) error { // bipush
+			b, err := f.codeReader.ReadByte()
 			if err != nil {
 				return err
 			}
 
-			*f.operandStack = append(*f.operandStack, int(byte))
+			*f.operandStack = append(*f.operandStack, int(b))
 			return nil
-		},
-		18: func(s *state, f frame) error { // ldc
+		}, nil
+	case 18:
+		return func(s *state, f frame) error { // ldc
 			idx, err := f.codeReader.ReadByte()
 			if err != nil {
 				return err
@@ -74,52 +80,61 @@ func init() {
 				return nil
 			}
 			return fmt.Errorf("ldc (18) only implemented for string")
-		},
-		26: func(s *state, f frame) error { // iload_0
+		}, nil
+	case 26:
+		return func(s *state, f frame) error { // iload_0
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[0]) // TODO: catch errors
 			return nil
-		},
-		27: func(s *state, f frame) error { // iload_1
+		}, nil
+	case 27:
+		return func(s *state, f frame) error { // iload_1
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[1]) // TODO: catch errors
 			return nil
-		},
-		28: func(s *state, f frame) error { // iload_2
+		}, nil
+	case 28:
+		return func(s *state, f frame) error { // iload_2
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[2]) // TODO: catch errors
 			return nil
-		},
-		29: func(s *state, f frame) error { // iload_3
+		}, nil
+	case 29:
+		return func(s *state, f frame) error { // iload_3
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[3]) // TODO: catch errors
 			return nil
-		},
-		59: func(s *state, f frame) error { // istore_0
+		}, nil
+	case 59:
+		return func(s *state, f frame) error { // istore_0
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			(*f.localVariable)[0] = lastVal
 			return nil
-		},
-		60: func(s *state, f frame) error { // istore_1
+		}, nil
+	case 60:
+		return func(s *state, f frame) error { // istore_1
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			(*f.localVariable)[1] = lastVal
 			return nil
-		},
-		61: func(s *state, f frame) error { // istore_2
+		}, nil
+	case 61:
+		return func(s *state, f frame) error { // istore_2
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			(*f.localVariable)[2] = lastVal
 			return nil
-		},
-		62: func(s *state, f frame) error { // istore_3
+		}, nil
+	case 62:
+		return func(s *state, f frame) error { // istore_3
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			(*f.localVariable)[3] = lastVal
 			return nil
-		},
-		96: func(s *state, f frame) error { // iadd
+		}, nil
+	case 96:
+		return func(s *state, f frame) error { // iadd
 			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
@@ -127,8 +142,9 @@ func init() {
 
 			*f.operandStack = append(*f.operandStack, value1+value2)
 			return nil
-		},
-		100: func(s *state, f frame) error { // isub
+		}, nil
+	case 100:
+		return func(s *state, f frame) error { // isub
 			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
@@ -136,8 +152,9 @@ func init() {
 
 			*f.operandStack = append(*f.operandStack, value1-value2)
 			return nil
-		},
-		104: func(s *state, f frame) error { // imul
+		}, nil
+	case 104:
+		return func(s *state, f frame) error { // imul
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			lastVal2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
@@ -145,8 +162,9 @@ func init() {
 
 			*f.operandStack = append(*f.operandStack, lastVal*lastVal2)
 			return nil
-		},
-		132: func(s *state, f frame) error { // iinc
+		}, nil
+	case 132:
+		return func(s *state, f frame) error { // iinc
 			index, err := f.codeReader.ReadByte()
 			if err != nil {
 				return err
@@ -158,8 +176,9 @@ func init() {
 
 			(*f.localVariable)[index] = (*f.localVariable)[index].(int) + int(constVal)
 			return nil
-		},
-		162: func(s *state, f frame) error { // if_icmpge <- >=
+		}, nil
+	case 162:
+		return func(s *state, f frame) error { // if_icmpge <- >=
 			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
@@ -178,8 +197,9 @@ func init() {
 				}
 			}
 			return nil
-		},
-		163: func(s *state, f frame) error { // if_icmpgt <- >
+		}, nil
+	case 163:
+		return func(s *state, f frame) error { // if_icmpgt <- >
 			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
@@ -198,8 +218,9 @@ func init() {
 				}
 			}
 			return nil
-		},
-		167: func(s *state, f frame) error {
+		}, nil
+	case 167:
+		return func(s *state, f frame) error {
 			branchOffsetTmp, err := f.codeReader.ReadU2() //FIXME: might be negative
 			if err != nil {
 				return err
@@ -211,8 +232,9 @@ func init() {
 
 			_, err = f.codeReader.Seek(int64(branchOffset), io.SeekCurrent)
 			return err
-		},
-		172: func(s *state, f frame) error { // ireturn
+		}, nil
+	case 172:
+		return func(s *state, f frame) error { // ireturn
 			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 
 			*s.frames[len(s.frames)-2].operandStack = append(*s.frames[len(s.frames)-2].operandStack, lastVal)
@@ -225,8 +247,9 @@ func init() {
 			}
 
 			return nil // TODO: check errors
-		},
-		177: func(s *state, f frame) error { // return
+		}, nil
+	case 177:
+		return func(s *state, f frame) error { // return
 			// TODO: return void and empty operandStack
 
 			_, err := f.codeReader.Seek(0, io.SeekEnd)
@@ -235,14 +258,16 @@ func init() {
 			}
 
 			return nil
-		},
-		178: func(s *state, f frame) error { // getstatic
+		}, nil
+	case 178:
+		return func(s *state, f frame) error { // getstatic
 			// TODO: get a static field
 			_, err := f.codeReader.ReadByte()
 			_, err = f.codeReader.ReadByte()
 			return err
-		},
-		182: func(s *state, f frame) error { // invokevirtual
+		}, nil
+	case 182:
+		return func(s *state, f frame) error { // invokevirtual
 			// TODO: Invoke instance method; dispatch based on class
 			// in my test case this will always be System.out.println(int)
 			address, err := f.codeReader.ReadU2()
@@ -283,8 +308,9 @@ func init() {
 			default:
 				return fmt.Errorf(`function "%s" not implemented`, name)
 			}
-		},
-		184: func(s *state, f frame) error { // invokestatic
+		}, nil
+	case 184:
+		return func(s *state, f frame) error { // invokestatic
 			address, err := f.codeReader.ReadU2()
 			if err != nil {
 				return err
@@ -320,8 +346,9 @@ func init() {
 			}
 
 			return err
-		},
-		186: func(s *state, f frame) error { // invokedynamic
+		}, nil
+	case 186:
+		return func(s *state, f frame) error { // invokedynamic
 			address, err := f.codeReader.ReadU2()
 			if err != nil {
 				return err
@@ -404,8 +431,9 @@ func init() {
 			*f.operandStack = append(*f.operandStack, lastVal+string2)
 
 			return nil
-		},
+		}, nil
 	}
+	return nil, fmt.Errorf(`unknown instruction "%s"`, instruction)
 }
 
 func execute(file parse.ClassFile) error {
@@ -485,11 +513,12 @@ codeFound:
 			return err
 		}
 
-		if _, ok := instructionSet[b]; !ok {
-			return fmt.Errorf("instruction \"%d\" not implemented", b)
+		inst, err := getInstruction(b)
+		if err != nil {
+			return err
 		}
 
-		err = instructionSet[b](&s, f)
+		err = inst(&s, f)
 		if err != nil {
 			return err
 		}
@@ -498,7 +527,7 @@ codeFound:
 	return nil
 }
 
-func runMethod(methodName string, methodDescriptor string, s *state, args []interface{}) error {
+func runMethod(methodName string, methodDescriptor string, s *state, args []interface{}) error { // TODO: cashing
 	var mainMethod parse.MethodInfo
 	for _, method := range s.file.Methods {
 		if s.file.ConstantPool[method.NameIndex-1].(parse.ConstantUtf8Info).Text == methodName {
@@ -549,7 +578,7 @@ codeFound:
 		return err
 	}
 
-	_, _, err = reader.ReadAttributes() // Attributes
+	_, _, err = reader.ReadAttributes() // TODO: Parse these while creating the class file to get quicker :)
 	if err != nil {
 		return err
 	}
@@ -571,11 +600,12 @@ codeFound:
 			return err
 		}
 
-		if _, ok := instructionSet[b]; !ok {
-			return fmt.Errorf("instruction \"%d\" not implemented", b)
+		inst, err := getInstruction(b)
+		if err != nil {
+			return err
 		}
 
-		err = instructionSet[b](s, f)
+		err = inst(s, f)
 		if err != nil {
 			return err
 		}
