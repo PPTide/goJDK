@@ -13,7 +13,7 @@ const (
 
 type state struct {
 	frames []frame
-	file   parse.ClassFile
+	files  []parse.ClassFile
 }
 
 type frame struct {
@@ -90,9 +90,10 @@ codeFound:
 	}
 	s := state{
 		frames: make([]frame, 0),
-		file:   file,
+		files:  make([]parse.ClassFile, 0),
 	}
 	s.frames = append(s.frames, f)
+	s.files = append(s.files, file)
 
 	for f.codeReader.Len() > 0 {
 		b, err := f.codeReader.ReadByte()
@@ -116,21 +117,26 @@ codeFound:
 
 func runMethod(methodName string, methodDescriptor string, s *state, args []interface{}) error { // TODO: cashing
 	var mainMethod parse.MethodInfo
-	for _, method := range s.file.Methods {
-		if s.file.ConstantPool[method.NameIndex-1].(parse.ConstantUtf8Info).Text == methodName {
-			mainMethod = method
-			goto methodFound
+	var file parse.ClassFile
+	for _, classFile := range s.files {
+		for _, method := range classFile.Methods {
+			if classFile.ConstantPool[method.NameIndex-1].(parse.ConstantUtf8Info).Text == methodName {
+				mainMethod = method
+				file = classFile
+				goto methodFound
+			}
 		}
+
 	}
 	return fmt.Errorf(`method "%s" not found`, methodName)
 methodFound:
-	descriptor := s.file.ConstantPool[mainMethod.DescriptorIndex-1].(parse.ConstantUtf8Info).Text
+	descriptor := file.ConstantPool[mainMethod.DescriptorIndex-1].(parse.ConstantUtf8Info).Text
 	if !(descriptor == methodDescriptor) {
 		return fmt.Errorf("main method not formated corectly")
 	}
 	var mainMethodCodeAttribute parse.AttributeInfo
 	for _, attribute := range mainMethod.Attributes {
-		if s.file.ConstantPool[attribute.AttributeNameIndex-1].(parse.ConstantUtf8Info).Text == "Code" {
+		if file.ConstantPool[attribute.AttributeNameIndex-1].(parse.ConstantUtf8Info).Text == "Code" {
 			mainMethodCodeAttribute = attribute
 			goto codeFound
 		}
@@ -177,7 +183,7 @@ codeFound:
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack:  &operandStack,
 		localVariable: &localVariable,
-		file:          s.file,
+		file:          file,
 	}
 	s.frames = append(s.frames, f)
 

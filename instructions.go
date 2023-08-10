@@ -58,7 +58,7 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				return err
 			}
 
-			if utf8, ok := s.file.ConstantPool[idx].(parse.ConstantUtf8Info); ok {
+			if utf8, ok := f.file.ConstantPool[idx].(parse.ConstantUtf8Info); ok {
 				*f.operandStack = append(*f.operandStack, utf8.Text)
 				return nil
 			}
@@ -303,12 +303,28 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 
 			methodClass := (*method.Class).(parse.ConstantClassInfo)
 			className := (*methodClass.Name).(parse.ConstantUtf8Info).Text
-			currentClass := s.file.ConstantPool[s.file.ThisClass-1].(parse.ConstantClassInfo)
+			currentClass := f.file.ConstantPool[f.file.ThisClass-1].(parse.ConstantClassInfo)
 			currentClassName := (*currentClass.Name).(parse.ConstantUtf8Info).Text
 			if className != currentClassName {
-				return fmt.Errorf("support for different classes not implemented")
+				//return fmt.Errorf("support for different classes not implemented")
+				for _, file := range s.files {
+					fileClass := file.ConstantPool[f.file.ThisClass-1].(parse.ConstantClassInfo)
+					fileClassName := (*fileClass.Name).(parse.ConstantUtf8Info).Text
+
+					if fileClassName == className {
+						goto fileFound
+					}
+				}
+				// File is not loaded yet
+				file, err := parse.Parse(className + ".class")
+				if err != nil {
+					return err
+				}
+				s.files = append(s.files, file)
+				goto fileFound
 			}
 
+		fileFound:
 			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
 			descriptor := (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text
@@ -323,7 +339,7 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			args = append(args, lastVal)
 
-			err = runMethod(name, descriptor, s, args)
+			err = runMethod(name, descriptor, s, args) //FIXME: This won't work for methods with the same name in different classes
 			if err != nil {
 				return err
 			}
@@ -405,6 +421,7 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			}
 
 			// FIXME: expects only makeConcatWithConstants
+			// FIXME: no worky :(
 			lastVal := strconv.Itoa((*f.operandStack)[len(*f.operandStack)-1].(int))
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
