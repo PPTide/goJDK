@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 )
 
@@ -68,7 +67,7 @@ func decodeBigEndian(b []byte) (o int) {
 		b[i], b[j] = b[j], b[i]
 	}
 	for i, x := range b {
-		o += int(x) * int(math.Pow(256, float64(i)))
+		o += int(x) << (i * 8)
 	}
 	return
 }
