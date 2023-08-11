@@ -1,34 +1,14 @@
-// Type your code here, or load an example.
-class Square {
-    static int square(int num) {
-        return num * num;
-    }
-    static int times2(int num) {
-        return num * 2;
-    }
+class Beer {
     public static void main(String[] args) {
-        int eight = times2(4);
-        System.out.println(square(eight));
-    }
-}
+        int bottles = 99;
+        StringBuilder sb = new StringBuilder();
+        String verse1 = " bottles of beer on the wall";
+        String verse2 = " bottles of beer. Take one down, pass it around, ";
+        String verse3 = "Better go to the store and buy some more.";
 
-class HelloWorld {
-    public static void main(String[] args) {
-        System.out.println("Hi 3^2 = " + Square.square(3));
-    }
-}
+        while (bottles > 0)
+            sb.append(bottles).append(verse1).append(bottles).append(verse2).append(--bottles).append(verse1).append(" ");
 
-class Hello {
-    public static int fib(int n) {
-        if (n <= 1)
-            return n;
-        return fib(n - 1) + fib(n - 2);
-    }
-
-    public static void main(String args[]) {
-        int N = 100;
-        for (int i = 0; i < N; i++) {
-            System.out.print(fib(i) + " ");
-        }
+        System.out.println(sb.append(verse3));
     }
 }

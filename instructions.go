@@ -68,6 +68,16 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				return fmt.Errorf("ldc (18) not implemented for %s", reflect.TypeOf(f.file.ConstantPool[idx-1]))
 			}
 		}, nil
+	case 25: // aload
+		return func(s *state, f frame) error {
+			b, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			*f.operandStack = append(*f.operandStack, (*f.localVariable)[b])
+			return nil
+		}, nil
 	case 26:
 		return func(s *state, f frame) error { // iload_0
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[0]) // TODO: catch errors
@@ -86,6 +96,40 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 	case 29:
 		return func(s *state, f frame) error { // iload_3
 			*f.operandStack = append(*f.operandStack, (*f.localVariable)[3]) // TODO: catch errors
+			return nil
+		}, nil
+	case 42: // aload_0
+		return func(s *state, f frame) error {
+			*f.operandStack = append(*f.operandStack, (*f.localVariable)[0])
+			return nil
+		}, nil
+	case 43: // aload_1
+		return func(s *state, f frame) error {
+			*f.operandStack = append(*f.operandStack, (*f.localVariable)[1])
+			return nil
+		}, nil
+	case 44: // aload_2
+		return func(s *state, f frame) error {
+			*f.operandStack = append(*f.operandStack, (*f.localVariable)[2])
+			return nil
+		}, nil
+	case 45: // aload_3
+		return func(s *state, f frame) error {
+			*f.operandStack = append(*f.operandStack, (*f.localVariable)[3])
+			return nil
+		}, nil
+	case 58: // astore
+		// TODO: type checking
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			b, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			(*f.localVariable)[b] = lastVal
 			return nil
 		}, nil
 	case 59:
@@ -118,6 +162,47 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
 			(*f.localVariable)[3] = lastVal
+			return nil
+		}, nil
+	case 75: // astore_0
+		// TODO: type checking
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[0] = lastVal
+			return nil
+		}, nil
+	case 76: // astore_1
+		// TODO: type checking
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[1] = lastVal
+			return nil
+		}, nil
+	case 77: // astore_2
+		// TODO: type checking
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[2] = lastVal
+			return nil
+		}, nil
+	case 78: // astore_3
+		// TODO: type checking
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			(*f.localVariable)[3] = lastVal
+			return nil
+		}, nil
+	case 87: // pop
+		return func(s *state, f frame) error {
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 			return nil
 		}, nil
 	case 89: // dup
@@ -155,8 +240,8 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			*f.operandStack = append(*f.operandStack, lastVal*lastVal2)
 			return nil
 		}, nil
-	case 132:
-		return func(s *state, f frame) error { // iinc
+	case 132: // iinc
+		return func(s *state, f frame) error {
 			index, err := f.codeReader.ReadByte()
 			if err != nil {
 				return err
@@ -166,7 +251,26 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				return err
 			}
 
-			(*f.localVariable)[index] = (*f.localVariable)[index].(int) + int(constVal)
+			(*f.localVariable)[index] = (*f.localVariable)[index].(int) + int(int8(constVal))
+			return nil
+		}, nil
+	case 158: // ifle -> <=
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			branchOffset, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+			branchOffset = branchOffset - 3 // get the offset without the branch bytes
+
+			if lastVal <= 0 {
+				_, err := f.codeReader.Seek(int64(branchOffset), io.SeekCurrent)
+				if err != nil {
+					return err
+				}
+			}
 			return nil
 		}, nil
 	case 162:
@@ -284,10 +388,14 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 					println(out)
 					return nil
 				}
+				if out, ok := lastVal.(class); ok && out.name == "java/lang/StringBuilder" {
+					println(out.vars["string"].(string))
+					return nil
+				}
 				_ = (*f.operandStack)[:len(*f.operandStack)-1] // objectref
 				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
-				return fmt.Errorf("unimplementet type for println")
+				return fmt.Errorf(`unimplementet type "%v" for println`, reflect.TypeOf(lastVal))
 			case "print":
 				lastVal := (*f.operandStack)[len(*f.operandStack)-1]
 				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
@@ -302,7 +410,7 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				_ = (*f.operandStack)[:len(*f.operandStack)-1] // objectref
 				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
 
-				return fmt.Errorf("unimplementet type for print")
+				return fmt.Errorf(`unimplementet type "%v" for print`, reflect.TypeOf(lastVal))
 			case "append":
 				if className != "java/lang/StringBuilder" {
 					return fmt.Errorf("unknow function append in class " + className)
