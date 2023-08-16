@@ -158,7 +158,7 @@ codeFound:
 	if err != nil {
 		return err
 	}
-	_, err = reader.ReadU2() // maxLocals
+	maxLocals, err := reader.ReadU2() // maxLocals
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,10 @@ codeFound:
 
 	// ------------------- Code Execution ---------------------
 	operandStack := make([]variable, 0)
-	localVariable := args
+	localVariable := make([]variable, maxLocals)
+	for i, arg := range args {
+		localVariable[i] = arg
+	}
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack:  &operandStack,

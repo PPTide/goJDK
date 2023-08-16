@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 )
 
 // ClassFileReader extends bytes.Reader to allow java specific readers.
@@ -83,9 +84,9 @@ type ClassFile struct {
 	ThisClass         int
 	SuperClass        int
 	InterfacesCount   int
-	Interfaces        []byte
+	Interfaces        []int
 	FieldsCount       int
-	Fields            interface{}
+	Fields            []FieldInfo
 	MethodsCount      int
 	Methods           []MethodInfo
 	AttributesCount   int
@@ -140,6 +141,10 @@ func (f *ClassFile) resolveIndexes() error {
 			}
 			t.String = &f.ConstantPool[t.StringIndex-1]
 			f.ConstantPool[i] = t
+		case ConstantIntegerInfo:
+			continue
+		case ConstantLongInfo:
+			continue //TODO: I might be able to do stuff here :)
 		case ConstantInvokeDynamicInfo:
 			if _, ok := f.ConstantPool[t.NameAndTypeIndex-1].(ConstantNameAndTypeInfo); !ok {
 				return fmt.Errorf("name not of type ConstantNameAndTypeInfo")
@@ -150,8 +155,18 @@ func (f *ClassFile) resolveIndexes() error {
 			//TODO: Check reference using reference kind
 			t.Reference = &f.ConstantPool[t.ReferenceIndex]
 			f.ConstantPool[i] = t
+		case ConstantInterfaceMethodrefInfo:
+			if _, ok := f.ConstantPool[t.ClassIndex-1].(ConstantClassInfo); !ok {
+				return fmt.Errorf("name not of type ConstantClassInfo")
+			}
+			t.Class = &f.ConstantPool[t.ClassIndex-1]
+			if _, ok := f.ConstantPool[t.NameAndTypeIndex-1].(ConstantNameAndTypeInfo); !ok {
+				return fmt.Errorf("name not of type ConstantNameAndTypeInfo")
+			}
+			t.NameAndType = &f.ConstantPool[t.NameAndTypeIndex-1]
+			f.ConstantPool[i] = t
 		default:
-			return fmt.Errorf("unkown type trying to resolve indexes")
+			return fmt.Errorf("unkown type %s trying to resolve indexes", reflect.TypeOf(t))
 		}
 	}
 	//TODO: add the same for interfaces, fields, methods and attributes
@@ -219,17 +234,20 @@ func Parse(filename string) (cF ClassFile, err error) {
 		return
 	}
 
-	if cF.InterfacesCount > 0 {
+	/*if cF.InterfacesCount > 0 {
 		return cF, errors.New("interfaces not implemented")
+	}*/
+	for i := 0; i < cF.InterfacesCount; i++ {
+		faceOfTheInterKind, err := reader.ReadU2()
+		if err != nil {
+			return cF, err
+		}
+		cF.Interfaces = append(cF.Interfaces, faceOfTheInterKind)
 	}
 
-	cF.FieldsCount, err = reader.ReadU2()
+	cF.FieldsCount, cF.Fields, err = reader.ReadFields()
 	if err != nil {
 		return
-	}
-
-	if cF.FieldsCount > 0 {
-		return cF, errors.New("fields not implemented")
 	}
 
 	cF.MethodsCount, cF.Methods, err = reader.ReadMethods()

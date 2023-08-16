@@ -8,7 +8,13 @@ import (
 	"io"
 	"reflect"
 	"strconv"
+	"strings"
 )
+
+type field struct {
+	fieldRefInfo parse.ConstantFieldrefInfo
+	value        interface{}
+}
 
 func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 	switch instruction {
@@ -240,6 +246,26 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			*f.operandStack = append(*f.operandStack, lastVal*lastVal2)
 			return nil
 		}, nil
+	case 112: // irem
+		return func(s *state, f frame) error {
+			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			*f.operandStack = append(*f.operandStack, value1-(value1/value2)*value2)
+			return nil
+		}, nil
+	case 122: // ishr
+		return func(s *state, f frame) error {
+			value2 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+			value1 := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			*f.operandStack = append(*f.operandStack, value1>>value2)
+			return nil
+		}, nil
 	case 132: // iinc
 		return func(s *state, f frame) error {
 			index, err := f.codeReader.ReadByte()
@@ -362,9 +388,27 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			_, err = f.codeReader.ReadByte()
 			return err
 		}, nil
+	case 180: // getfield
+		return func(s *state, f frame) error {
+			// FIXME: This is not implemented
+			address, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
+			}
+
+			fieldref := f.file.ConstantPool[address-1].(parse.ConstantFieldrefInfo)
+
+			x := field{
+				fieldRefInfo: fieldref,
+				value:        []rune{}, // FIXME: i am making this work for exactly one case xD
+			}
+
+			*f.operandStack = append(*f.operandStack, x)
+			return nil
+		}, nil
 	case 182: // invokevirtual
 		return func(s *state, f frame) error {
-			// TODO: Invoke instance method; dispatch based on class
+			/*// TODO: Invoke instance method; dispatch based on class
 			// in my test case this will always be System.out.println(int)
 			address, err := f.codeReader.ReadU2()
 			if err != nil {
@@ -452,8 +496,75 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 
 				return nil
 			default:
-				return fmt.Errorf(`function "%s" not implemented (invokevirtual)`, name)
+				return fmt.Errorf(`function "%s" in class "%s" not implemented (invokevirtual)`, name, className)
+			}*/
+
+			// FIXME: this is just a copy of invokestatic (184)
+			address, err := f.codeReader.ReadU2()
+			if err != nil {
+				return err
 			}
+
+			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
+
+			methodClass := (*method.Class).(parse.ConstantClassInfo)
+			className := (*methodClass.Name).(parse.ConstantUtf8Info).Text
+			currentClass := f.file.ConstantPool[f.file.ThisClass-1].(parse.ConstantClassInfo)
+			currentClassName := (*currentClass.Name).(parse.ConstantUtf8Info).Text
+			if className != currentClassName {
+				//return fmt.Errorf("support for different classes not implemented")
+				for _, file := range s.files {
+					fileClass := file.ConstantPool[f.file.ThisClass-1].(parse.ConstantClassInfo)
+					fileClassName := (*fileClass.Name).(parse.ConstantUtf8Info).Text
+
+					if fileClassName == className {
+						goto fileFound
+					}
+				}
+				// File is not loaded yet
+				file, err := parse.Parse(className + ".class")
+				if err != nil {
+					return err
+				}
+				s.files = append(s.files, file)
+				goto fileFound
+			}
+
+		fileFound:
+			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
+			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
+			descriptor := (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text
+
+			des, err := parseDescriptor(descriptor)
+			args := make([]variable, 0)
+			pTypes := des.parameterTypes
+			for i, j := 0, len(pTypes)-1; i < j; i, j = i+1, j-1 {
+				pTypes[i], pTypes[j] = pTypes[j], pTypes[i]
+			}
+			for _, parameterType := range des.parameterTypes {
+				var arg variable
+				lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+				switch parameterType {
+				case "I":
+					arg = lastVal.(int)
+				case "Ljava/lang/String":
+					arg = lastVal.(string)
+				default:
+					return fmt.Errorf("unknown parameter type %s", parameterType)
+				}
+				args = append(args, arg)
+			}
+			for i, j := 0, len(args)-1; i < j; i, j = i+1, j-1 {
+				args[i], args[j] = args[j], args[i]
+			}
+
+			err = runMethod(name, descriptor, s, args) //FIXME: This won't work for methods with the same name in different classes
+			if err != nil {
+				return err
+			}
+
+			return err
 		}, nil
 	case 183: // invokespecial
 		return func(s *state, f frame) error {
@@ -510,15 +621,29 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
 			descriptor := (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text
 
-			if descriptor != "(I)I" {
-				return fmt.Errorf("not supported descriptor")
-			}
-			argCount := 1 // TODO: this only works for the example
-			_ = argCount
+			des, err := parseDescriptor(descriptor)
 			args := make([]variable, 0)
-			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(int)
-			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
-			args = append(args, lastVal)
+			pTypes := des.parameterTypes
+			for i, j := 0, len(pTypes)-1; i < j; i, j = i+1, j-1 {
+				pTypes[i], pTypes[j] = pTypes[j], pTypes[i]
+			}
+			for _, parameterType := range des.parameterTypes {
+				var arg variable
+				lastVal := (*f.operandStack)[len(*f.operandStack)-1]
+				*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+				switch parameterType {
+				case "I":
+					arg = lastVal.(int)
+				case "Ljava/lang/String":
+					arg = lastVal.(string)
+				default:
+					return fmt.Errorf("unknown parameter type %s", parameterType)
+				}
+				args = append(args, arg)
+			}
+			for i, j := 0, len(args)-1; i < j; i, j = i+1, j-1 {
+				args[i], args[j] = args[j], args[i]
+			}
 
 			err = runMethod(name, descriptor, s, args) //FIXME: This won't work for methods with the same name in different classes
 			if err != nil {
@@ -633,6 +758,34 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			}
 			return fmt.Errorf(`_new_ not implemented for "%s"`, name)
 		}, nil
+	case 188: // newarray
+		return func(s *state, f frame) error {
+			count := (*f.operandStack)[len(*f.operandStack)-1].(int)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			atype, err := f.codeReader.ReadByte()
+			if err != nil {
+				return err
+			}
+
+			switch atype {
+			case 5: // T_CHAR
+				*f.operandStack = append(*f.operandStack, make([]rune, count))
+				return nil
+			default:
+				return fmt.Errorf("creating new array atype %d not implemented", atype)
+			}
+		}, nil
+	case 190: // arraylength
+		return func(s *state, f frame) error {
+			lastVal := (*f.operandStack)[len(*f.operandStack)-1].(field)
+			*f.operandStack = (*f.operandStack)[:len(*f.operandStack)-1]
+
+			arr := lastVal.value.([]rune) // FIXME: i am making this work for exactly one case xD
+
+			*f.operandStack = append(*f.operandStack, len(arr))
+			return nil
+		}, nil
 	}
 	return nil, fmt.Errorf(`unknown instruction "%d"`, instruction)
 }
@@ -648,4 +801,74 @@ func toString(from variable) (string, error) {
 		return "", fmt.Errorf("type %s not implemented for toString", reflect.TypeOf(t))
 	}
 	return to, nil
+}
+
+type descriptor struct {
+	parameterTypes []string
+	returnType     string
+}
+
+func parseDescriptor(descriptorString string) (des descriptor, err error) {
+	r := strings.NewReader(descriptorString)
+	if c, _, err := r.ReadRune(); c != '(' {
+		if err != nil {
+			return des, err
+		}
+		err = fmt.Errorf("error parsing first letter of descriptor")
+		return des, err
+	}
+
+	for {
+		c, err := parseType(r)
+		if err != nil {
+			return des, err
+		}
+		if c == ")" {
+			break
+		}
+
+		des.parameterTypes = append(des.parameterTypes, c)
+	}
+
+	c, err := parseType(r)
+	if err != nil {
+		return des, err
+	}
+
+	des.returnType = c
+
+	return
+}
+
+func parseType(r *strings.Reader) (string, error) {
+	c, _, err := r.ReadRune()
+	if err != nil {
+		return "", err
+	}
+
+	if c == 'L' {
+		out := []rune{c}
+		for {
+			c, _, err := r.ReadRune()
+			if c == ';' {
+				break
+			}
+			if err != nil {
+				return "", err
+			}
+
+			out = append(out, c)
+		}
+		return string(out), nil
+	}
+	if c == '[' {
+		c2, err := parseType(r)
+		if err != nil {
+			return "", err
+		}
+
+		return "[" + c2, nil
+	}
+
+	return string([]rune{c}), nil
 }

@@ -1,14 +1,30 @@
-class Beer {
+class Cipher {
     public static void main(String[] args) {
-        int bottles = 99;
-        StringBuilder sb = new StringBuilder();
-        String verse1 = " bottles of beer on the wall";
-        String verse2 = " bottles of beer. Take one down, pass it around, ";
-        String verse3 = "Better go to the store and buy some more.";
 
-        while (bottles > 0)
-            sb.append(bottles).append(verse1).append(bottles).append(verse2).append(--bottles).append(verse1).append(" ");
+        String str = "The quick brown fox Jumped over the lazy Dog";
 
-        System.out.println(sb.append(verse3));
+        System.out.println( Cipher.encode( str, 12 ));
+        System.out.println( Cipher.decode( Cipher.encode( str, 12), 12 ));
+    }
+
+    public static String decode(String enc, int offset) {
+        return encode(enc, 26-offset);
+    }
+
+    public static String encode(String enc, int offset) {
+        offset = offset % 26 + 26;
+        StringBuilder encoded = new StringBuilder();
+        for (char i : enc.toCharArray()) {
+            if (Character.isLetter(i)) {
+                if (Character.isUpperCase(i)) {
+                    encoded.append((char) ('A' + (i - 'A' + offset) % 26 ));
+                } else {
+                    encoded.append((char) ('a' + (i - 'a' + offset) % 26 ));
+                }
+            } else {
+                encoded.append(i);
+            }
+        }
+        return encoded.toString();
     }
 }
