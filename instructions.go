@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/PPTide/gojdk/parse"
 	"io"
-	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -572,23 +571,11 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 		}, nil
 	case 178: // getstatic
 		return func(s *state, f frame) error {
-			// TODO: get a static field
 			index, err := f.codeReader.ReadU2()
 
 			val := f.file.ConstantPool[index-1]
 
-			//name := pp.Sprint(val)
-
-			/*if t, ok := val.(parse.ConstantFieldrefInfo); ok {
-				name = pp.Print(t)
-			} else {
-				fmt.Printf("lol name is of type %v", reflect.TypeOf(val))
-			}*/
-
-			//fmt.Printf("Got static %s\n", name)
-
-			// FIXME: I should run the initialisation method and then get the field...
-			if t, ok := val.(parse.ConstantFieldrefInfo); ok && (*(*t.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text == "sizeTable" { // FIXME: jank xD
+			/*if t, ok := val.(parse.ConstantFieldrefInfo); ok && (*(*t.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text == "sizeTable" { // FIXME: jank xD
 				*f.heap = append(*f.heap, []int{9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999, math.MaxInt64})
 				*f.operandStack = append(*f.operandStack, variable{
 					referenceType: "[I",
@@ -611,17 +598,32 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				})
 				return nil
 			}
+			*/
 
-			// FIXME: this should apend a objectref
-			*f.heap = append(*f.heap, struct {
-				text string
-				val  interface{}
-			}{"I should be a objectref created by getstatic of type", val})
-			*f.operandStack = append(*f.operandStack, variable{
-				reference: &((*f.heap)[len(*f.heap)-1]),
-			})
+			t, ok := val.(parse.ConstantFieldrefInfo)
+			if !ok {
+				return fmt.Errorf("type %s not of type ConstantFieldrefInfo int getstatic", reflect.TypeOf(val))
+			}
+			className := (*(*t.Class).(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text
+			fieldName := (*(*t.NameAndType).(parse.ConstantNameAndTypeInfo).Name).(parse.ConstantUtf8Info).Text
+			fieldDescriptor := (*(*t.NameAndType).(parse.ConstantNameAndTypeInfo).Descriptor).(parse.ConstantUtf8Info).Text
 
-			return err
+			ref, err := initializeClass(className, s)
+			if err != nil {
+				return err
+			}
+
+			classContent := (*ref.expectReferenceOfType("L" + className)).(class)
+			field := classContent.vars[fieldName]
+
+			if !(field.valType == fieldDescriptor ||
+				field.referenceType == fieldDescriptor) {
+				return fmt.Errorf("fieldDescriptor doesn't match field type in getstatic")
+			}
+
+			*f.operandStack = append(*f.operandStack, field)
+
+			return nil
 		}, nil
 	case 180: // getfield
 		return func(s *state, f frame) error {
@@ -752,6 +754,11 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 
 			name = className + "." + name
 
+			err = getClassFile(className, s)
+			if err != nil {
+				return err
+			}
+
 			err = runMethod(name, descriptor, s, args) //FIXME: This won't work for methods with the same name in different classes
 			if err != nil {
 				return err
@@ -786,31 +793,18 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 			}
 
 			method := f.file.ConstantPool[address-1].(parse.ConstantMethodrefInfo)
+			currentClass := f.file.ConstantPool[f.file.ThisClass-1].(parse.ConstantClassInfo)
 
 			methodClass := (*method.Class).(parse.ConstantClassInfo)
 			className := (*methodClass.Name).(parse.ConstantUtf8Info).Text
-			currentClass := f.file.ConstantPool[f.file.ThisClass-1].(parse.ConstantClassInfo)
 			currentClassName := (*currentClass.Name).(parse.ConstantUtf8Info).Text
 			if className != currentClassName {
-				//return fmt.Errorf("support for different classes not implemented")
-				for _, file := range s.files {
-					fileClass := file.ConstantPool[file.ThisClass-1].(parse.ConstantClassInfo)
-					fileClassName := (*fileClass.Name).(parse.ConstantUtf8Info).Text
-
-					if fileClassName == className {
-						goto fileFound
-					}
-				}
-				// File is not loaded yet
-				file, err := parse.Parse(className + ".class")
+				err := getClassFile(className, s)
 				if err != nil {
 					return err
 				}
-				s.files = append(s.files, file)
-				goto fileFound
 			}
 
-		fileFound:
 			methodNameAndType := (*method.NameAndType).(parse.ConstantNameAndTypeInfo)
 			name := (*methodNameAndType.Name).(parse.ConstantUtf8Info).Text
 			descriptor := (*methodNameAndType.Descriptor).(parse.ConstantUtf8Info).Text
@@ -846,7 +840,7 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 
 			name = className + "." + name
 
-			err = runMethod(name, descriptor, s, args) //FIXME: This won't work for methods with the same name in different classes
+			err = runMethod(name, descriptor, s, args)
 			if err != nil {
 				return err
 			}
@@ -945,33 +939,14 @@ func getInstruction(instruction byte) (func(s *state, f frame) error, error) {
 				return err
 			}
 			name := (*f.file.ConstantPool[address-1].(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text
-			/*if name == "java/lang/StringBuilder" {
-				classInst := class{
-					isVirtual: true,
-					name:      name,
-					vars:      make(map[string]variable),
-				}
-				classInst.vars["initialCapacity"] = asIntVariable(16)
-				classInst.vars["string"] = createAsReferenceAndAddToHeap("Ljava/lang/String", "", f)
-				*f.operandStack = append(*f.operandStack,
-					createAsReferenceAndAddToHeap("Ljava/lang/StringBuilder", classInst, f))
-				return nil
-			}
-			if name == "java/lang/String" {
-				*f.operandStack = append(*f.operandStack,
-					createAsReferenceAndAddToHeap("Ljava/lang/String", "", f))
-				return nil
-			}
-			return fmt.Errorf(`_new_ not implemented for "%s"`, name)*/
-			ref := createAsReferenceAndAddToHeap("L"+name, class{
-				name: "L" + name,
-				vars: make(map[string]variable),
-			}, f)
-			*f.operandStack = append(*f.operandStack, ref)
-			err = runMethod(name+".<init>", "()V", s, []variable{ref})
+
+			ref, err := initializeClass(name, s)
 			if err != nil {
 				return err
 			}
+
+			*f.operandStack = append(*f.operandStack, ref)
+
 			return nil
 		}, nil
 	case 188: // newarray
@@ -1076,4 +1051,48 @@ func parseType(r *strings.Reader) (string, error) {
 	}
 
 	return string([]rune{c}), nil
+}
+
+// initializeClass takes the name of a class creates a local representation and runs the <init> method
+func initializeClass(name string, s *state) (variable, error) {
+	heap := make([]interface{}, 0) // FIXME: the heap should be in state anyway lol
+	f := frame{heap: &heap}
+
+	ref := createAsReferenceAndAddToHeap("L"+name, class{
+		name: "L" + name,
+		vars: make(map[string]variable),
+	}, f)
+
+	err := getClassFile(name, s)
+	if err != nil {
+		return variable{}, err
+	}
+
+	//err = runMethod(name+".<clinit>", "()V", s, []variable{ref})
+	err = runMethod(name+".<clinit>", "()V", s, []variable{})
+
+	return ref, err
+}
+
+// getClassFile looks if the class got parsed and added to the list and adds and parses it if it didn't
+func getClassFile(className string, s *state) error {
+	var file parse.ClassFile
+
+	for _, f := range s.files {
+		fileClass := f.ConstantPool[f.ThisClass-1].(parse.ConstantClassInfo)
+		fileClassName := (*fileClass.Name).(parse.ConstantUtf8Info).Text
+
+		if fileClassName == className {
+			file = f
+			return nil
+		}
+	}
+	// File is not loaded yet
+	file, err := parse.Parse(className + ".class")
+	if err != nil {
+		return err
+	}
+	s.files = append(s.files, file)
+
+	return nil
 }
