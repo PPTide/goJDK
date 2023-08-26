@@ -194,7 +194,7 @@ func runMethod(method string, methodDescriptor string, s *state, args []variable
 				goto methodFound
 			}
 		}
-
+		break
 	}
 	return fmt.Errorf(`method "%s" not found`, methodName)
 methodFound:
@@ -204,7 +204,12 @@ methodFound:
 	}
 
 	if mainMethod.AccessFlags&methodFlagAccNative != 0 {
-		return fmt.Errorf("method %s is native", methodName)
+		if methodName == "registerNatives" {
+			// TODO: implement native methods correctly
+			return nil
+		} else {
+			return fmt.Errorf("method %s is native", methodName)
+		}
 	}
 
 	var mainMethodCodeAttribute parse.AttributeInfo
