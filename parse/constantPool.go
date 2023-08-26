@@ -3,9 +3,8 @@ package parse
 import "fmt"
 
 type CpInfo interface {
-	implementCPInfo()
+	getTag() byte
 }
-
 type ConstantMethodrefInfo struct {
 	tag              byte    // u1 tag; (always 10)
 	Class            *CpInfo // ConstantClassInfo
@@ -14,8 +13,20 @@ type ConstantMethodrefInfo struct {
 	NameAndTypeIndex int     // u2 name_and_type_index;
 }
 
-func (c ConstantMethodrefInfo) implementCPInfo() {
-	return
+func (c ConstantMethodrefInfo) getTag() byte {
+	return c.tag
+}
+
+type ConstantInterfaceMethodrefInfo struct {
+	tag              byte    // u1 tag; (always 11)
+	Class            *CpInfo // ConstantClassInfo
+	ClassIndex       int     // u2 class_index;
+	NameAndType      *CpInfo // ConstantNameAndTypeInfo
+	NameAndTypeIndex int     // u2 name_and_type_index;
+}
+
+func (c ConstantInterfaceMethodrefInfo) getTag() byte {
+	return c.tag
 }
 
 type ConstantFieldrefInfo struct {
@@ -26,8 +37,8 @@ type ConstantFieldrefInfo struct {
 	NameAndTypeIndex int     // u2 name_and_type_index;
 }
 
-func (c ConstantFieldrefInfo) implementCPInfo() {
-	return
+func (c ConstantFieldrefInfo) getTag() byte {
+	return c.tag
 }
 
 type ConstantClassInfo struct {
@@ -36,8 +47,8 @@ type ConstantClassInfo struct {
 	NameIndex int     // u2 name_index;
 }
 
-func (c ConstantClassInfo) implementCPInfo() {
-	return
+func (c ConstantClassInfo) getTag() byte {
+	return c.tag
 }
 
 type ConstantNameAndTypeInfo struct {
@@ -48,8 +59,8 @@ type ConstantNameAndTypeInfo struct {
 	DescriptorIndex int     // u2 descriptor_index;
 }
 
-func (c ConstantNameAndTypeInfo) implementCPInfo() {
-	return
+func (c ConstantNameAndTypeInfo) getTag() byte {
+	return c.tag
 }
 
 type ConstantStringInfo struct {
@@ -59,8 +70,46 @@ type ConstantStringInfo struct {
 
 }
 
-func (c ConstantStringInfo) implementCPInfo() {
-	return
+func (c ConstantStringInfo) getTag() byte {
+	return c.tag
+}
+
+type ConstantIntegerInfo struct {
+	tag     byte // u1 tag;
+	Integer int  // u4
+}
+
+func (c ConstantIntegerInfo) getTag() byte {
+	return c.tag
+}
+
+type ConstantFloatInfo struct {
+	tag      byte   // u1 tag;
+	FloatVal []byte // u4
+}
+
+func (c ConstantFloatInfo) getTag() byte {
+	return c.tag
+}
+
+type ConstantLongInfo struct {
+	tag       byte   // u1 tag;
+	highBytes []byte // u4
+	lowBytes  []byte // u4
+}
+
+func (c ConstantLongInfo) getTag() byte {
+	return c.tag
+}
+
+type ConstantDoubleInfo struct {
+	tag       byte   // u1 tag;
+	highBytes []byte // u4
+	lowBytes  []byte // u4
+}
+
+func (c ConstantDoubleInfo) getTag() byte {
+	return c.tag
 }
 
 type ConstantUtf8Info struct {
@@ -70,8 +119,8 @@ type ConstantUtf8Info struct {
 	Content []byte // u1 bytes[length];
 }
 
-func (c ConstantUtf8Info) implementCPInfo() {
-	return
+func (c ConstantUtf8Info) getTag() byte {
+	return c.tag
 }
 
 type ConstantInvokeDynamicInfo struct {
@@ -82,8 +131,8 @@ type ConstantInvokeDynamicInfo struct {
 	NameAndTypeIndex         int     // u2
 }
 
-func (c ConstantInvokeDynamicInfo) implementCPInfo() {
-	return
+func (c ConstantInvokeDynamicInfo) getTag() byte {
+	return c.tag
 }
 
 type ConstantMethodHandleInfo struct {
@@ -93,8 +142,8 @@ type ConstantMethodHandleInfo struct {
 	ReferenceIndex int     // u2
 }
 
-func (c ConstantMethodHandleInfo) implementCPInfo() {
-	return
+func (c ConstantMethodHandleInfo) getTag() byte {
+	return c.tag
 }
 
 // ReadCPInfo reads one constant pool entry.
@@ -106,6 +155,57 @@ func (r *ClassFileReader) ReadCPInfo() (info CpInfo, err error) {
 
 	// TODO: implement fully: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-4.html#jvms-4.4-140
 	switch tag {
+	case 3:
+		IInfo := ConstantIntegerInfo{tag: 3}
+		IInfo.Integer, err = r.ReadU4()
+		if err != nil {
+			return
+		}
+		info = IInfo
+	case 4:
+		IInfo := ConstantFloatInfo{tag: 4}
+		for i := 0; i < 4; i++ {
+			b, err := r.ReadByte()
+			if err != nil {
+				return info, err
+			}
+			IInfo.FloatVal = append(IInfo.FloatVal, b)
+		}
+		info = IInfo
+	case 5: // CONSTANT_Long_info
+		IInfo := ConstantLongInfo{tag: 5}
+		for i := 0; i < 4; i++ {
+			b, err := r.ReadByte()
+			if err != nil {
+				return info, err
+			}
+			IInfo.highBytes = append(IInfo.highBytes, b)
+		}
+		for i := 0; i < 4; i++ {
+			b, err := r.ReadByte()
+			if err != nil {
+				return info, err
+			}
+			IInfo.lowBytes = append(IInfo.lowBytes, b)
+		}
+		info = IInfo
+	case 6: // CONSTANT_Double_info
+		IInfo := ConstantDoubleInfo{tag: 6}
+		for i := 0; i < 4; i++ {
+			b, err := r.ReadByte()
+			if err != nil {
+				return info, err
+			}
+			IInfo.highBytes = append(IInfo.highBytes, b)
+		}
+		for i := 0; i < 4; i++ {
+			b, err := r.ReadByte()
+			if err != nil {
+				return info, err
+			}
+			IInfo.lowBytes = append(IInfo.lowBytes, b)
+		}
+		info = IInfo
 	case 7: // CONSTANT_Class
 		CInfo := ConstantClassInfo{tag: 7}
 		CInfo.NameIndex, err = r.ReadU2()
@@ -136,6 +236,18 @@ func (r *ClassFileReader) ReadCPInfo() (info CpInfo, err error) {
 		info = FieldredInfo
 	case 10: // CONSTANT_Methodref
 		MRInfo := ConstantMethodrefInfo{tag: 10}
+		MRInfo.ClassIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+		MRInfo.NameAndTypeIndex, err = r.ReadU2()
+		if err != nil {
+			return
+		}
+
+		info = MRInfo
+	case 11: // CONSTANT_InterfaceMethodref_info
+		MRInfo := ConstantInterfaceMethodrefInfo{tag: 11}
 		MRInfo.ClassIndex, err = r.ReadU2()
 		if err != nil {
 			return
@@ -212,6 +324,10 @@ func (r *ClassFileReader) ReadConstantPool() (size int, entries []CpInfo, err er
 			return
 		}
 		entries = append(entries, entry)
+		if entry.getTag() == 5 || entry.getTag() == 6 {
+			i++
+			entries = append(entries, entry) // CONSTANT_Long_info and CONSTANT_Double_info take 2 constant pool entries
+		}
 	}
 
 	return

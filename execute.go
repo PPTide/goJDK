@@ -4,14 +4,50 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/PPTide/gojdk/parse"
+	"strings"
 )
 
 const (
-	methodFlagAccPublic = 1
-	methodFlagAccStatic = 8
+	methodFlagAccPublic = 0x0001
+	methodFlagAccStatic = 0x0008
+	methodFlagAccNative = 0x0100
 )
 
-type variable interface{}
+type variable struct {
+	valType       string
+	val           interface{}
+	referenceType string
+	reference     *interface{}
+}
+
+func (v variable) expectType(varType string) interface{} {
+	if v.valType != varType {
+		panic(fmt.Errorf("type %s didn't match expected type %s", v.valType, varType))
+	}
+	return v.val
+}
+
+func asIntVariable(val int) variable {
+	return variable{
+		valType: "int",
+		val:     val,
+	}
+}
+
+func (v variable) expectReferenceOfType(referenceType string) *interface{} {
+	if v.referenceType != referenceType {
+		panic(fmt.Errorf("type %s didn't match expected type %s", v.referenceType, referenceType))
+	}
+	return v.reference
+}
+
+func createAsReferenceAndAddToHeap(referenceType string, reference interface{}, f frame) variable {
+	*f.heap = append(*f.heap, reference)
+	return variable{
+		referenceType: referenceType,
+		reference:     &((*f.heap)[len(*f.heap)-1]),
+	}
+}
 
 type state struct {
 	frames []frame
@@ -20,9 +56,19 @@ type state struct {
 
 type frame struct {
 	codeReader    *parse.ClassFileReader
-	operandStack  *[]variable // FIXME: there are also different types of variables xD
-	localVariable *[]variable // FIXME: see above ;)
+	operandStack  *varSlice
+	localVariable *varSlice
 	file          parse.ClassFile
+	heap          *[]interface{}
+}
+
+type varSlice []variable
+
+func (s *varSlice) pop() variable {
+	x := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+
+	return x
 }
 
 type class struct {
@@ -57,10 +103,11 @@ mainFound:
 codeFound:
 	reader := (*parse.ClassFileReader)(bytes.NewReader(mainMethodCodeAttribute.Info))
 
-	_, err := reader.ReadU2() // maxStack
+	maxStack, err := reader.ReadU2() // maxStack
 	if err != nil {
 		return err
 	}
+	_ = maxStack
 	maxLocals, err := reader.ReadU2() // maxLocals
 	if err != nil {
 		return err
@@ -89,13 +136,15 @@ codeFound:
 	}
 
 	// ------------------- Code Execution ---------------------
-	operandStack := make([]variable, 0)
-	localVariable := make([]variable, maxLocals)
+	operandStack := make(varSlice, 0)
+	localVariable := make(varSlice, maxLocals)
+	heap := make([]interface{}, 0)
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack:  &operandStack,
 		localVariable: &localVariable,
 		file:          file,
+		heap:          &heap,
 	}
 	s := state{
 		frames: make([]frame, 0),
@@ -124,12 +173,22 @@ codeFound:
 	return nil
 }
 
-func runMethod(methodName string, methodDescriptor string, s *state, args []variable) error { // TODO: cashing
+// runMethod finds a method and runs it in a new frame
+//
+// method is formated as *methodClass*.*methodName*
+func runMethod(method string, methodDescriptor string, s *state, args []variable) error { // TODO: cashing
+	methodSplit := strings.SplitN(method, ".", 2)
+	methodClass, methodName := methodSplit[0], methodSplit[1]
+
 	var mainMethod parse.MethodInfo
 	var file parse.ClassFile
 	for _, classFile := range s.files {
+		if (*classFile.ConstantPool[classFile.ThisClass-1].(parse.ConstantClassInfo).Name).(parse.ConstantUtf8Info).Text != methodClass {
+			continue
+		}
 		for _, method := range classFile.Methods {
-			if classFile.ConstantPool[method.NameIndex-1].(parse.ConstantUtf8Info).Text == methodName {
+			if classFile.ConstantPool[method.NameIndex-1].(parse.ConstantUtf8Info).Text == methodName &&
+				classFile.ConstantPool[method.DescriptorIndex-1].(parse.ConstantUtf8Info).Text == methodDescriptor {
 				mainMethod = method
 				file = classFile
 				goto methodFound
@@ -141,8 +200,13 @@ func runMethod(methodName string, methodDescriptor string, s *state, args []vari
 methodFound:
 	descriptor := file.ConstantPool[mainMethod.DescriptorIndex-1].(parse.ConstantUtf8Info).Text
 	if !(descriptor == methodDescriptor) {
-		return fmt.Errorf("main method not formated corectly")
+		return fmt.Errorf("method not formated as expected corectly: %s != %s", descriptor, methodDescriptor)
 	}
+
+	if mainMethod.AccessFlags&methodFlagAccNative != 0 {
+		return fmt.Errorf("method %s is native", methodName)
+	}
+
 	var mainMethodCodeAttribute parse.AttributeInfo
 	for _, attribute := range mainMethod.Attributes {
 		if file.ConstantPool[attribute.AttributeNameIndex-1].(parse.ConstantUtf8Info).Text == "Code" {
@@ -154,14 +218,16 @@ methodFound:
 codeFound:
 	reader := (*parse.ClassFileReader)(bytes.NewReader(mainMethodCodeAttribute.Info))
 
-	_, err := reader.ReadU2() // maxStack
+	maxStack, err := reader.ReadU2() // maxStack
 	if err != nil {
 		return err
 	}
-	_, err = reader.ReadU2() // maxLocals
+	_ = maxStack
+	maxLocals, err := reader.ReadU2() // maxLocals
 	if err != nil {
 		return err
 	}
+	_ = maxLocals
 
 	codeLength, err := reader.ReadU4()
 	if err != nil {
@@ -173,9 +239,9 @@ codeFound:
 		return err
 	}
 
-	exceptionTableLength, _ := reader.ReadU2()
-	exceptionTable := make([]byte, exceptionTableLength)
-	_, err = reader.Read(exceptionTable) //TODO: Parse the exception table
+	exceptionTableLength, _ := reader.ReadU2()             // FIXME: fuck I'm reading exception tables wrong...
+	exceptionTable := make([]byte, exceptionTableLength*8) // each entry is 8 bytes long so im just reading them away here... hope it works :)
+	_, err = reader.Read(exceptionTable)                   //TODO: Parse the exception table
 	if err != nil {
 		return err
 	}
@@ -186,13 +252,18 @@ codeFound:
 	}
 
 	// ------------------- Code Execution ---------------------
-	operandStack := make([]variable, 0)
-	localVariable := args
+	operandStack := make(varSlice, 0)
+	localVariable := make(varSlice, maxLocals)
+	heap := make([]interface{}, 0)
+	for i, arg := range args {
+		localVariable[i] = arg
+	}
 	f := frame{
 		codeReader:    (*parse.ClassFileReader)(bytes.NewReader(code)),
 		operandStack:  &operandStack,
 		localVariable: &localVariable,
 		file:          file,
+		heap:          &heap,
 	}
 	s.frames = append(s.frames, f)
 

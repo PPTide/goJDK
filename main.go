@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/PPTide/gojdk/parse"
 	"log"
 	"os/exec"
@@ -15,11 +16,11 @@ func main() {
 		log.Fatal(errors.Join(err, errors.New(string(out))))
 	}
 
-	res, err := parse.Parse("Beer.class")
+	res, err := parse.Parse("Main.class")
 	//pp.Println(res)
 	if err != nil {
 		//niceShow(res)
-		panic(err)
+		panic(fmt.Sprintf("Error: %+v", err))
 	}
 
 	if res.MajorVersion > 52 {
